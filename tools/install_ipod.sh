@@ -170,6 +170,7 @@ rsync -a --delete \
     --exclude='database_*.tcd' \
     --exclude='database_idx.tcd' \
     --exclude='playername.txt' \
+    --exclude='battery_bench.txt' \
     "$CACHE_DIR/.rockbox" "$MOUNT_POINT/"
 
 # Verify sync succeeded
