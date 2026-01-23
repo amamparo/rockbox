@@ -158,8 +158,19 @@ echo "iPod mounted at $MOUNT_POINT"
 update_cache
 
 # Sync to iPod using rsync (only transfers changed files)
+# Exclude user-generated files that should be preserved
 echo "Syncing .rockbox to iPod..."
-rsync -a --delete --progress "$CACHE_DIR/.rockbox" "$MOUNT_POINT/"
+rsync -a --delete \
+    --exclude='config.cfg' \
+    --exclude='config.cfg.*' \
+    --exclude='.resume.cfg' \
+    --exclude='.resume.cfg.*' \
+    --exclude='.playlist_control' \
+    --exclude='.playlist_control.*' \
+    --exclude='database_*.tcd' \
+    --exclude='database_idx.tcd' \
+    --exclude='playername.txt' \
+    "$CACHE_DIR/.rockbox" "$MOUNT_POINT/"
 
 # Verify sync succeeded
 if [ ! -d "$MOUNT_POINT/.rockbox" ]; then
