@@ -58,9 +58,9 @@ do_build() {
             cd /rockbox/build
             ../tools/configure --target=22 --type=N
             make -j$(nproc)
-            make zip
+            make fullzip
             cp -v rockbox.ipod /output/
-            cp -v rockbox.zip /output/
+            cp -v rockbox-full.zip /output/rockbox.zip
         '
 
     echo ""

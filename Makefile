@@ -13,13 +13,14 @@
 #   make rbutil       - Build Rockbox Utility for macOS (native)
 #   make clean        - Remove build artifacts
 
-.PHONY: help build rbutil clean
+.PHONY: help build rbutil install clean
 
 help:
 	@echo "Rockbox Build System"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make build   - Build Rockbox firmware for iPod Video 5.5G (via Docker)"
+	@echo "  make install - Install Rockbox to connected iPod"
 	@echo "  make rbutil  - Build Rockbox Utility for macOS Apple Silicon (native)"
 	@echo "  make clean   - Remove build artifacts from output/"
 	@echo ""
@@ -29,6 +30,9 @@ help:
 
 build:
 	./tools/docker_ipodvideo/build.sh build
+
+install:
+	./tools/install_ipod.sh
 
 rbutil:
 	./utils/rbutilqt/macos/build.sh build
