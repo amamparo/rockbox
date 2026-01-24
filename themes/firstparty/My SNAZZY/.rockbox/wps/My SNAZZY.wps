@@ -120,20 +120,20 @@ SHF%?ps<%xd(O,2)|%xd(O)>
 %pm
 
 #__Play/Pause Icons
-%V(20,214,21,11,-)
+%V(20,219,21,11,-)
 %?mp<%xd(PBI,1)|%xd(PBI,2)|%xd(PBI,3)|%xd(PBI,4)|%xd(PBI,5)>
 
 #__Next Up Selector
 %?pE(20)<%?pS(10)<%Vd(curInfo)|%Vd(nextInfo)>|%Vd(curInfo)>
 
 #__Track Time / Playlist position / Playtime & (Manual/Auto) Score
-%Vl(curInfo,43,211,257,20,3)
+%Vl(curInfo,43,215,257,20,3)
 %al%pc-%pr%ac%?if(%pt, >, 35999)<|%pp-%pe>%ar%?if(%pe, >, 999)<%pR|%pL-%pR>
 
 #__Next Up
-%Vl(nextInfo,42,211,22,20,3)
+%Vl(nextInfo,42,215,22,20,3)
 %ac→%Vs(invert)
-%Vl(nextInfo,64,211,235,20,3)
+%Vl(nextInfo,64,215,235,20,3)
 %ac%s%?Ia<%Ia%?It< - %It>|%Fn> %Vs(invert)
 
 #-------- Lock Screen Layer -------#
