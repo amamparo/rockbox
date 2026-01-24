@@ -92,19 +92,23 @@ SHF%?ps<%xd(O,2)|%xd(O)>
 %dr(0,0,280,1)
 
 #__Track Title
-%Vl(MainDisplay,20,66,207,22,4)
+%Vl(MainDisplay,20,66,202,22,4)
 %al%s%?it<%it|%fn>
 
 #__Artist
-%Vl(MainDisplay,20,90,207,17,3)
+%Vl(MainDisplay,20,90,202,17,3)
 %al%s%?ia<%ia|NO TAG>
 
 #__Album
-%Vl(MainDisplay,20,109,207,17,3)
+%Vl(MainDisplay,20,109,202,17,3)
 %al%s%?id<%id|>
 
+#__Channels Border
+%Vl(MainDisplay,-93,70,73,25,-)
+%dr(0,0,73,1)%dr(0,24,73,1)%dr(0,0,1,25)%dr(72,0,1,25)
+
 #__Channels
-%Vl(MainDisplay,-93,76,73,17,3)
+%Vl(MainDisplay,-91,74,69,17,3)
 %ac%?St(channels)<STEREO|MONO|CUSTOM|LEFT|RIGHT|KARAOKE>
 
 #__File Info
