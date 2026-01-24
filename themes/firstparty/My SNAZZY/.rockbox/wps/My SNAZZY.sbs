@@ -50,13 +50,13 @@
 
 #------------- Status Bar Layer -----------#
 
-#__Username - Max 8 characters anything more will scroll
-%V(20,8,64,17,3)
-%al%sROCKBOX
+#__Page Title
+%V(20,8,125,17,3)
+%al%s%?if(%cs, =, 10)<Quick Screen|%?cs<Main Menu|%?Lt<%Lt>>>
 
 #__Hold
-%V(90,8,81,17,3)
-%?mh<%acLOCKED%Vs(invert)|>
+%V(150,8,40,17,3)
+%?mh<%acHOLD%Vs(invert)|>
 
 #__Repeat
 %V(220,11,21,12,-)
@@ -85,24 +85,12 @@
 #__Clear Screen
 %Vi(clearScreen,0,0,1,1,-)
 
-#__Title
-%Vl(MainDisplay,20,25,215,30,5)
-%al%s%?cs<Main Menu|%?Lt<%Lt>>
-
-#__QuickScreen
-%Vl(Quickscreen,20,25,215,30,5)
-%alQuick Screen
-
-#__Time / Day
-%Vl(MainDisplay,-85,34,63,26,3)
-%ar%t(5)%?cf<%cH:%cM|%?cl<1|2|3|4|5|6|7|8|9|10|11|12>:%cM%cp>;%ar%t(5)%cb %cd
-
 #__Top Line
-%Vl(MainDisplay,20,57,280,1,-)
+%Vl(MainDisplay,20,27,280,1,-)
 %dr(0,0,280,1)
 
 #__UI Viewport
-%Vi(menuViewport,20,69,280,130,4)
+%Vi(menuViewport,20,32,280,167,4)
 
 #__Bottom Line
 %Vl(MainDisplay,20,200,280,1,-)
