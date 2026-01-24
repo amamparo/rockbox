@@ -2639,16 +2639,20 @@ bool tagtree_current_playlist_insert(int position, bool queue)
 }
 
 /*
- * Optimized single-pass shuffle of all songs in the database.
- * Bypasses the normal two-pass approach (retrieve_entries + insert_all_playlist)
- * by directly iterating the tagcache and inserting tracks in one pass.
- * This is significantly faster for large libraries.
+ * Optimized shuffle of all songs in the database.
+ * Instead of per-track playlist insertions (which write to control file each time),
+ * this writes all tracks to a temp .m3u8 file, then loads it in bulk.
+ * The bulk load just scans the file and populates indices - no per-track I/O.
+ * This is dramatically faster for large libraries (15K+ tracks).
  */
+#define SHUFFLE_ALL_TEMP_FILE ROCKBOX_DIR "/.shuffle_all.m3u8"
+
 bool tagtree_shuffle_all_songs(void)
 {
     struct tagcache_search tcs;
     char buf[MAX_PATH];
     int track_count = 0;
+    int fd;
     unsigned long last_tick;
 
     if (!tagcache_is_usable())
@@ -2660,60 +2664,66 @@ bool tagtree_shuffle_all_songs(void)
     splash(0, ID2P(LANG_WAIT));
     cpu_boost(true);
 
-    /* Create new playlist */
-    if (playlist_create(NULL, NULL) < 0)
+    /* Create temp playlist file - writes are much faster than per-track control file updates */
+    fd = open(SHUFFLE_ALL_TEMP_FILE, O_CREAT | O_WRONLY | O_TRUNC, 0666);
+    if (fd < 0)
     {
         cpu_boost(false);
         splash(HZ, ID2P(LANG_FAILED));
         return false;
     }
 
-    /* Open tagcache search for filenames - single pass through all tracks */
+    /* Open tagcache search for filenames */
     if (!tagcache_search(&tcs, tag_filename))
     {
+        close(fd);
+        remove(SHUFFLE_ALL_TEMP_FILE);
         cpu_boost(false);
         splash(HZ, ID2P(LANG_TAGCACHE_BUSY));
         return false;
     }
 
-    struct playlist_insert_context context;
-    if (playlist_insert_context_create(NULL, &context, PLAYLIST_INSERT_LAST, false, false) < 0)
-    {
-        tagcache_search_finish(&tcs);
-        cpu_boost(false);
-        splash(HZ, ID2P(LANG_FAILED));
-        return false;
-    }
-
     last_tick = current_tick + HZ/2;
-    splash_progress_set_delay(HZ / 2);
 
-    /* Single pass: iterate tagcache and insert directly into playlist */
+    /* Write all tracks to temp file */
     while (tagcache_get_next(&tcs, buf, sizeof(buf)))
     {
-        if (TIME_AFTER(current_tick, last_tick + HZ/4))
+        /* Update progress every 500 tracks or every half-second */
+        if ((track_count % 500) == 0 || TIME_AFTER(current_tick, last_tick + HZ/2))
         {
             splashf(0, str(LANG_PLAYLIST_SEARCH_MSG), track_count, str(LANG_OFF_ABORT));
             if (action_userabort(TIMEOUT_NOBLOCK))
                 break;
             last_tick = current_tick;
+            yield();
         }
 
-        if (playlist_insert_context_add(&context, buf) >= 0)
+        /* Write track path to temp file */
+        if (fdprintf(fd, "%s\n", buf) > 0)
             track_count++;
-
-        yield();
     }
 
-    playlist_insert_context_release(&context);
     tagcache_search_finish(&tcs);
-    cpu_boost(false);
+    close(fd);
 
     if (track_count == 0)
     {
+        remove(SHUFFLE_ALL_TEMP_FILE);
+        cpu_boost(false);
         splash(HZ, ID2P(LANG_FAILED));
         return false;
     }
+
+    /* Load the temp file as playlist - this is fast bulk loading with no per-track I/O */
+    if (playlist_create(ROCKBOX_DIR, ".shuffle_all.m3u8") < 0)
+    {
+        remove(SHUFFLE_ALL_TEMP_FILE);
+        cpu_boost(false);
+        splash(HZ, ID2P(LANG_FAILED));
+        return false;
+    }
+
+    cpu_boost(false);
 
     /* Shuffle and start playback */
     int start_index = 0;
