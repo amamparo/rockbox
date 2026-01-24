@@ -1,5 +1,7 @@
-unzip `themes/thirdparty/SNAZZY v3.03.zip` into `themes/firstparty/My SNAZZY`
+Update the My SNAZZY theme.
 
-Update all relevant filenames, folders, and references to paths/files to reference `My SNAZZY` instead of `SNAZZY`.
+In the Now Playing screen, swap the track title and artist.
 
-This will essentially be a fork of the SNAZZY theme that I will tweak to my heart's content.
+I want the track title to be displayed in the large area above and the artist to be displayed in the smaller area below (cycling between track artist and album)
+
+For the artist icon, use whatever icon corresponds to a microphone/recorder/person

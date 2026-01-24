@@ -14,7 +14,8 @@
 # 3. Extracts rockbox.zip to local cache (if newer)
 # 4. Syncs .rockbox to iPod using rsync (fast incremental updates)
 # 5. Installs third-party themes from themes/thirdparty/*.zip
-# 6. Ejects the iPod
+# 6. Installs first-party themes from themes/firstparty/*/
+# 7. Ejects the iPod
 
 set -e
 
@@ -24,6 +25,7 @@ OUTPUT_DIR="$ROOT_DIR/output"
 ZIP_FILE="$OUTPUT_DIR/rockbox.zip"
 CACHE_DIR="$OUTPUT_DIR/.rockbox-cache"
 THEMES_DIR="$ROOT_DIR/themes/thirdparty"
+THEMES_FIRSTPARTY_DIR="$ROOT_DIR/themes/firstparty"
 THEMES_CACHE_DIR="$OUTPUT_DIR/.themes-cache"
 
 # Check if rockbox.zip exists
@@ -48,37 +50,57 @@ update_cache() {
 
 # Extract theme zips to cache if newer, then sync to iPod
 install_themes() {
-    if [ ! -d "$THEMES_DIR" ]; then
-        return 0
-    fi
+    # Install third-party themes (from zip files)
+    if [ -d "$THEMES_DIR" ]; then
+        local theme_zips=("$THEMES_DIR"/*.zip)
+        if [ -e "${theme_zips[0]}" ]; then
+            echo "Installing third-party themes..."
+            mkdir -p "$THEMES_CACHE_DIR"
 
-    local theme_zips=("$THEMES_DIR"/*.zip)
-    if [ ! -e "${theme_zips[0]}" ]; then
-        return 0
-    fi
+            for theme_zip in "${theme_zips[@]}"; do
+                local theme_name
+                theme_name=$(basename "$theme_zip" .zip)
+                local theme_cache="$THEMES_CACHE_DIR/$theme_name"
 
-    echo "Installing third-party themes..."
-    mkdir -p "$THEMES_CACHE_DIR"
+                # Extract if zip is newer than cache
+                if [ ! -d "$theme_cache" ] || [ "$theme_zip" -nt "$theme_cache" ]; then
+                    echo "  Extracting $theme_name..."
+                    rm -rf "$theme_cache"
+                    mkdir -p "$theme_cache"
+                    unzip -q -o "$theme_zip" -d "$theme_cache"
+                    touch "$theme_cache"
+                fi
 
-    for theme_zip in "${theme_zips[@]}"; do
-        local theme_name
-        theme_name=$(basename "$theme_zip" .zip)
-        local theme_cache="$THEMES_CACHE_DIR/$theme_name"
-
-        # Extract if zip is newer than cache
-        if [ ! -d "$theme_cache" ] || [ "$theme_zip" -nt "$theme_cache" ]; then
-            echo "  Extracting $theme_name..."
-            rm -rf "$theme_cache"
-            mkdir -p "$theme_cache"
-            unzip -q -o "$theme_zip" -d "$theme_cache"
-            touch "$theme_cache"
+                # Sync theme to iPod (no --delete, we want to merge)
+                # Theme zips contain a .rockbox folder, so sync its contents
+                echo "  Syncing $theme_name..."
+                rsync -a "$theme_cache/.rockbox/" "$MOUNT_POINT/.rockbox/"
+            done
         fi
+    fi
 
-        # Sync theme to iPod (no --delete, we want to merge)
-        # Theme zips contain a .rockbox folder, so sync its contents
-        echo "  Syncing $theme_name..."
-        rsync -a --progress "$theme_cache/.rockbox/" "$MOUNT_POINT/.rockbox/"
-    done
+    # Install first-party themes (from directories)
+    if [ -d "$THEMES_FIRSTPARTY_DIR" ]; then
+        local has_themes=false
+        for theme_dir in "$THEMES_FIRSTPARTY_DIR"/*/; do
+            if [ -d "$theme_dir/.rockbox" ]; then
+                has_themes=true
+                break
+            fi
+        done
+
+        if [ "$has_themes" = true ]; then
+            echo "Installing first-party themes..."
+            for theme_dir in "$THEMES_FIRSTPARTY_DIR"/*/; do
+                if [ -d "$theme_dir/.rockbox" ]; then
+                    local theme_name
+                    theme_name=$(basename "$theme_dir")
+                    echo "  Syncing $theme_name..."
+                    rsync -a "$theme_dir/.rockbox/" "$MOUNT_POINT/.rockbox/"
+                fi
+            done
+        fi
+    fi
 }
 
 # Find iPod disk identifier
