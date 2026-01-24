@@ -2495,6 +2495,138 @@ void playlist_insert_context_release(struct playlist_insert_context *context)
 }
 
 /*
+ * Initialize bulk insert context for fast batch insertion.
+ * Builds control file content in memory buffer, writes once at end.
+ * Must call playlist_create() first to create an empty playlist.
+ */
+int playlist_insert_bulk_init(struct playlist_insert_bulk_context *context,
+                              char *buffer, size_t buffer_size)
+{
+    struct playlist_info* playlist = &current_playlist;
+
+    context->playlist = playlist;
+    context->buffer = buffer;
+    context->buffer_size = buffer_size;
+    context->buffer_used = 0;
+    context->count = 0;
+    context->initialized = false;
+
+    dc_thread_stop(playlist);
+    playlist_write_lock(playlist);
+
+    if (check_control(playlist) < 0)
+    {
+        notify_control_access_error();
+        playlist_write_unlock(playlist);
+        dc_thread_start(playlist, true);
+        return -1;
+    }
+
+    context->initialized = true;
+    return 0;
+}
+
+/*
+ * Add a track to bulk insert context (buffered, no I/O yet).
+ * Returns 0 on success, -1 if buffer full or error.
+ */
+int playlist_insert_bulk_add(struct playlist_insert_bulk_context *context,
+                             const char *filename)
+{
+    struct playlist_info* playlist = context->playlist;
+
+    if (!context->initialized)
+        return -1;
+
+    if (playlist->amount >= playlist->max_playlist_size)
+    {
+        notify_buffer_full();
+        return -1;
+    }
+
+    /* Format: "A:position:last_insert_pos:filename\n"
+     * For appending, position = count and last_insert_pos = count */
+    int position = context->count;
+
+    /* Calculate space needed for prefix "A:pos:lastpos:" */
+    char prefix[32];
+    int prefix_len = snprintf(prefix, sizeof(prefix), "A:%d:%d:", position, position);
+
+    size_t filename_len = strlen(filename);
+    size_t entry_len = prefix_len + filename_len + 1; /* +1 for newline */
+
+    if (context->buffer_used + entry_len > context->buffer_size)
+        return -1; /* Buffer full */
+
+    /* Write prefix to buffer */
+    memcpy(context->buffer + context->buffer_used, prefix, prefix_len);
+
+    /* The seek_pos points to where the filename starts in control file */
+    /* We'll add the control file's current end position in flush */
+    size_t seek_pos_relative = context->buffer_used + prefix_len;
+
+    /* Write filename and newline */
+    memcpy(context->buffer + context->buffer_used + prefix_len, filename, filename_len);
+    context->buffer[context->buffer_used + prefix_len + filename_len] = '\n';
+
+    context->buffer_used += entry_len;
+
+    /* Store relative offset in indices - will fix up in flush */
+    playlist->indices[playlist->amount] = PLAYLIST_INSERT_TYPE_INSERT | seek_pos_relative;
+    dc_init_filerefs(playlist, playlist->amount, 1);
+    playlist->amount++;
+    context->count++;
+
+    return 0;
+}
+
+/*
+ * Flush bulk insert buffer to control file and finalize.
+ * Writes all buffered content in single write, updates indices.
+ */
+int playlist_insert_bulk_flush(struct playlist_insert_bulk_context *context)
+{
+    struct playlist_info* playlist = context->playlist;
+    int result = 0;
+
+    if (!context->initialized)
+    {
+        dc_thread_start(playlist, true);
+        return -1;
+    }
+
+    if (context->count > 0 && context->buffer_used > 0)
+    {
+        /* Get current end position of control file */
+        off_t ctrl_file_offset = lseek(playlist->control_fd, 0, SEEK_END);
+
+        /* Fix up all indices to have absolute seek positions */
+        for (int i = 0; i < playlist->amount; i++)
+        {
+            unsigned long flags = playlist->indices[i] & PLAYLIST_INSERT_TYPE_MASK;
+            unsigned long rel_seek = playlist->indices[i] & PLAYLIST_SEEK_MASK;
+            playlist->indices[i] = flags | ((rel_seek + ctrl_file_offset) & PLAYLIST_SEEK_MASK);
+        }
+
+        /* Write entire buffer to control file at once */
+        ssize_t written = write(playlist->control_fd, context->buffer, context->buffer_used);
+        if (written != (ssize_t)context->buffer_used)
+            result = -1;
+
+        /* Update playlist state */
+        playlist->last_insert_pos = context->count - 1;
+
+        /* Sync control file */
+        sync_control_unlocked(playlist);
+    }
+
+    playlist_write_unlock(playlist);
+    dc_thread_start(playlist, true);
+
+    return result;
+}
+
+/*
  * Insert all tracks from specified directory into playlist.
  */
 int playlist_insert_directory(struct playlist_info* playlist,

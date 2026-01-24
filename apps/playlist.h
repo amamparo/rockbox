@@ -115,6 +115,16 @@ struct playlist_insert_context {
     int32_t count_langid;
 };
 
+/* Context for batch insertion - builds control file in memory for single write */
+struct playlist_insert_bulk_context {
+    struct playlist_info* playlist;
+    char *buffer;           /* buffer for control file content */
+    size_t buffer_size;     /* total buffer size */
+    size_t buffer_used;     /* bytes used in buffer */
+    int count;              /* number of tracks added */
+    bool initialized;
+};
+
 /* Exported functions only for current playlist. */
 void playlist_init(void) INIT_ATTR;
 void playlist_shutdown(void);
@@ -156,6 +166,11 @@ int playlist_insert_context_create(struct playlist_info* playlist,
 int playlist_insert_context_add(struct playlist_insert_context *context,
                                 const char *filename);
 void playlist_insert_context_release(struct playlist_insert_context *context);
+int playlist_insert_bulk_init(struct playlist_insert_bulk_context *context,
+                              char *buffer, size_t buffer_size);
+int playlist_insert_bulk_add(struct playlist_insert_bulk_context *context,
+                             const char *filename);
+int playlist_insert_bulk_flush(struct playlist_insert_bulk_context *context);
 int playlist_insert_directory(struct playlist_info* playlist,
                               const char *dirname, int position, bool queue,
                               bool recurse);

@@ -2639,10 +2639,10 @@ bool tagtree_current_playlist_insert(int position, bool queue)
 }
 
 /*
- * Optimized single-pass shuffle of all songs in the database.
- * Bypasses the normal two-pass approach (retrieve_entries + insert_all_playlist)
- * by directly iterating the tagcache and inserting tracks in one pass.
- * This is significantly faster for large libraries.
+ * Optimized shuffle of all songs in the database using batch insertion.
+ * Instead of per-track control file writes (~4 syscalls per track),
+ * builds control file content in memory and writes once at the end.
+ * This dramatically reduces I/O overhead for large libraries.
  */
 bool tagtree_shuffle_all_songs(void)
 {
@@ -2650,6 +2650,9 @@ bool tagtree_shuffle_all_songs(void)
     char buf[MAX_PATH];
     int track_count = 0;
     unsigned long last_tick;
+    size_t bufsize;
+    int handle;
+    char *ctrl_buffer;
 
     if (!tagcache_is_usable())
     {
@@ -2660,53 +2663,72 @@ bool tagtree_shuffle_all_songs(void)
     splash(0, ID2P(LANG_WAIT));
     cpu_boost(true);
 
-    /* Create new playlist */
-    if (playlist_create(NULL, NULL) < 0)
+    /* Allocate buffer for batch control file content */
+    handle = core_alloc_maximum(&bufsize, NULL);
+    if (handle < 0)
     {
         cpu_boost(false);
         splash(HZ, ID2P(LANG_FAILED));
         return false;
     }
+    ctrl_buffer = core_get_data(handle);
 
-    /* Open tagcache search for filenames - single pass through all tracks */
+    /* Create new playlist */
+    if (playlist_create(NULL, NULL) < 0)
+    {
+        core_free(handle);
+        cpu_boost(false);
+        splash(HZ, ID2P(LANG_FAILED));
+        return false;
+    }
+
+    /* Open tagcache search for filenames */
     if (!tagcache_search(&tcs, tag_filename))
     {
+        core_free(handle);
         cpu_boost(false);
         splash(HZ, ID2P(LANG_TAGCACHE_BUSY));
         return false;
     }
 
-    struct playlist_insert_context context;
-    if (playlist_insert_context_create(NULL, &context, PLAYLIST_INSERT_LAST, false, false) < 0)
+    /* Initialize bulk insert context */
+    struct playlist_insert_bulk_context context;
+    if (playlist_insert_bulk_init(&context, ctrl_buffer, bufsize) < 0)
     {
         tagcache_search_finish(&tcs);
+        core_free(handle);
         cpu_boost(false);
         splash(HZ, ID2P(LANG_FAILED));
         return false;
     }
 
     last_tick = current_tick + HZ/2;
-    splash_progress_set_delay(HZ / 2);
 
-    /* Single pass: iterate tagcache and insert directly into playlist */
+    /* Iterate tagcache and add tracks to bulk buffer */
     while (tagcache_get_next(&tcs, buf, sizeof(buf)))
     {
-        if (TIME_AFTER(current_tick, last_tick + HZ/4))
+        /* Update progress and check for abort every 500 tracks or quarter-second */
+        if ((track_count % 500) == 0 || TIME_AFTER(current_tick, last_tick + HZ/4))
         {
             splashf(0, str(LANG_PLAYLIST_SEARCH_MSG), track_count, str(LANG_OFF_ABORT));
             if (action_userabort(TIMEOUT_NOBLOCK))
                 break;
             last_tick = current_tick;
+            yield();
         }
 
-        if (playlist_insert_context_add(&context, buf) >= 0)
+        if (playlist_insert_bulk_add(&context, buf) >= 0)
             track_count++;
-
-        yield();
+        else
+            break; /* Buffer full */
     }
 
-    playlist_insert_context_release(&context);
     tagcache_search_finish(&tcs);
+
+    /* Flush buffer to control file (single write) */
+    playlist_insert_bulk_flush(&context);
+
+    core_free(handle);
     cpu_boost(false);
 
     if (track_count == 0)
