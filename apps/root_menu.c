@@ -446,6 +446,133 @@ static int load_bmarks(void* param)
     return GO_TO_PREVIOUS;
 }
 
+#ifdef HAVE_TAGCACHE
+#define ALBUM_ROULETTE_MAX_RETRIES 10
+
+static int album_roulette(void* param)
+{
+    (void)param;
+    struct tagcache_search tcs;
+    int album_count = 0;
+    int32_t random_album_seek = -1;
+    char buf[MAX_PATH];
+    int track_count = 0;
+    int retries;
+    int i;
+
+    /* Check if database is ready */
+    if (!tagcache_is_usable())
+    {
+        splash(HZ*2, ID2P(LANG_TAGCACHE_BUSY));
+        return GO_TO_PREVIOUS;
+    }
+
+    /* Show loading splash */
+    splash(0, ID2P(LANG_WAIT));
+
+    /* First pass: count unique albums */
+    if (!tagcache_search(&tcs, tag_album))
+    {
+        splash(HZ*2, ID2P(LANG_TAGCACHE_BUSY));
+        return GO_TO_PREVIOUS;
+    }
+
+    while (tagcache_get_next(&tcs, buf, sizeof(buf)))
+        album_count++;
+    tagcache_search_finish(&tcs);
+
+    if (album_count == 0)
+    {
+        splash(HZ*2, ID2P(LANG_ALBUM_ROULETTE_EMPTY));
+        return GO_TO_PREVIOUS;
+    }
+
+    /* Seed random number generator */
+    srand(current_tick);
+
+    /* Try to find an album with playable tracks */
+    for (retries = 0; retries < ALBUM_ROULETTE_MAX_RETRIES; retries++)
+    {
+        int random_index = rand() % album_count;
+
+        /* Second pass: find the album at random_index */
+        if (!tagcache_search(&tcs, tag_album))
+        {
+            splash(HZ*2, ID2P(LANG_TAGCACHE_BUSY));
+            return GO_TO_PREVIOUS;
+        }
+
+        i = 0;
+        random_album_seek = -1;
+        while (tagcache_get_next(&tcs, buf, sizeof(buf)))
+        {
+            if (i == random_index)
+            {
+                random_album_seek = tcs.result_seek;
+                break;
+            }
+            i++;
+        }
+        tagcache_search_finish(&tcs);
+
+        if (random_album_seek < 0)
+            continue;  /* Try another random album */
+
+        /* Create playlist with album tracks */
+        if (playlist_create(NULL, NULL) < 0)
+        {
+            splash(HZ, ID2P(LANG_FAILED));
+            return GO_TO_PREVIOUS;
+        }
+
+        if (!tagcache_search(&tcs, tag_filename))
+        {
+            splash(HZ*2, ID2P(LANG_TAGCACHE_BUSY));
+            return GO_TO_PREVIOUS;
+        }
+        if (!tagcache_search_add_filter(&tcs, tag_album, random_album_seek))
+        {
+            tagcache_search_finish(&tcs);
+            continue;  /* Filter failed, try another album */
+        }
+
+        struct playlist_insert_context context;
+        if (playlist_insert_context_create(NULL, &context, PLAYLIST_INSERT_LAST, false, false) < 0)
+        {
+            tagcache_search_finish(&tcs);
+            splash(HZ, ID2P(LANG_FAILED));
+            return GO_TO_PREVIOUS;
+        }
+
+        track_count = 0;
+        while (tagcache_get_next(&tcs, buf, sizeof(buf)))
+        {
+            if (playlist_insert_context_add(&context, buf) >= 0)
+                track_count++;
+        }
+        playlist_insert_context_release(&context);
+        tagcache_search_finish(&tcs);
+
+        if (track_count > 0)
+            break;  /* Found an album with tracks */
+    }
+
+    if (track_count == 0)
+    {
+        splash(HZ*2, ID2P(LANG_ALBUM_ROULETTE_EMPTY));
+        return GO_TO_PREVIOUS;
+    }
+
+    /* Start playback */
+    int start_index = 0;
+    if (global_settings.playlist_shuffle)
+        start_index = playlist_shuffle(current_tick, 0);
+
+    playlist_start(start_index, 0, 0);
+    return GO_TO_WPS;
+}
+#endif /* HAVE_TAGCACHE */
+
 /* These are all static const'd from apps/menus/ *.c
    so little hack so we can use them */
 extern struct menu_item_ex
@@ -481,6 +608,9 @@ static const struct root_items items[] = {
     [GO_TO_BROWSEPLUGINS] = { miscscrn, &plugin_menu, NULL },
     [GO_TO_PLAYLISTS_SCREEN] = { playlist_view_catalog, NULL,
                                                         &playlist_options },
+#ifdef HAVE_TAGCACHE
+    [GO_TO_ALBUM_ROULETTE] = { album_roulette, NULL, NULL },
+#endif
     [GO_TO_PLAYLIST_VIEWER] = { playlist_view, NULL, &playlist_options },
     [GO_TO_SYSTEM_SCREEN] = { miscscrn, &info_menu, &system_menu },
     [GO_TO_SHORTCUTMENU] = { do_shortcut_menu, NULL, NULL },
@@ -529,6 +659,10 @@ MENUITEM_RETURNVALUE(bookmarks, ID2P(LANG_BOOKMARK_MENU_RECENT_BOOKMARKS),
                         Icon_Bookmark);
 MENUITEM_RETURNVALUE(playlists, ID2P(LANG_PLAYLISTS), GO_TO_PLAYLISTS_SCREEN,
                      NULL, Icon_Playlist);
+#ifdef HAVE_TAGCACHE
+MENUITEM_RETURNVALUE(album_roulette_item, ID2P(LANG_ALBUM_ROULETTE), GO_TO_ALBUM_ROULETTE,
+                     NULL, Icon_Questionmark);
+#endif
 MENUITEM_RETURNVALUE(system_menu_, ID2P(LANG_SYSTEM), GO_TO_SYSTEM_SCREEN,
                      NULL, Icon_System_menu);
 
@@ -543,7 +677,11 @@ static struct menu_table menu_table[] = {
     { "database", &db_browser },
 #endif
     { "playlists", &playlists },
+#ifdef HAVE_TAGCACHE
+    { "album_roulette", &album_roulette_item },
+#endif
     { "plugins", &rocks_browser },
+    { "system", &system_menu_ },
     { "settings", &menu_ },
 };
 #define MAX_MENU_ITEMS (sizeof(menu_table) / sizeof(struct menu_table))

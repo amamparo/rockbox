@@ -17065,3 +17065,31 @@
     *: "Playlist finished. Play again?"
   </voice>
 </phrase>
+<phrase>
+  id: LANG_ALBUM_ROULETTE
+  desc: Main menu item for random album playback
+  user: core
+  <source>
+    *: "Album Roulette"
+  </source>
+  <dest>
+    *: "Album Roulette"
+  </dest>
+  <voice>
+    *: "Album Roulette"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_ALBUM_ROULETTE_EMPTY
+  desc: Error when no albums in database for Album Roulette
+  user: core
+  <source>
+    *: "No albums found"
+  </source>
+  <dest>
+    *: "No albums found"
+  </dest>
+  <voice>
+    *: "No albums found"
+  </voice>
+</phrase>
