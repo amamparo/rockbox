@@ -1,9 +1,14 @@
 modify My SNAZZY's wps theme...
 
-swap the locations of the artist and track title views.
+Turn the track info section into three rows by breaking out the second row into two separate ones of equal height/font size.
 
-the track title should be in the big letters at the top and the artist should be in the smaller row below, rotating with the album view (show artist first then album).
+The track info rows should be sorted as follows:
+track title
+artist
+album
 
-the icon for the artist view should be the same bitmap that's used for the recordings / recordings settings menu item (do not use the existing artist bitmap file as I think it's hideous).
+get rid of any icons to the left of the track info rows. the context of each row will be implied.
 
-we should not change the icon used for the album view.
+In order to make room for the third row, increase the height of the WPS screen a bit, and reduce the height of the track title row a bit.
+
+The track info section also shares a visual row with the channels/file info section, so after increasing the height of the screen, make sure that the channels/file info section is vertically centered and aligned with the track info.
