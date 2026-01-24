@@ -458,7 +458,6 @@ static int album_roulette(void* param)
     char buf[MAX_PATH];
     int track_count = 0;
     int retries;
-    int i;
 
     /* Check if database is ready */
     if (!tagcache_is_usable())
@@ -470,50 +469,35 @@ static int album_roulette(void* param)
     /* Show loading splash */
     splash(0, ID2P(LANG_WAIT));
 
-    /* First pass: count unique albums */
-    if (!tagcache_search(&tcs, tag_album))
-    {
-        splash(HZ*2, ID2P(LANG_TAGCACHE_BUSY));
-        return GO_TO_PREVIOUS;
-    }
-
-    while (tagcache_get_next(&tcs, buf, sizeof(buf)))
-        album_count++;
-    tagcache_search_finish(&tcs);
-
-    if (album_count == 0)
-    {
-        splash(HZ*2, ID2P(LANG_ALBUM_ROULETTE_EMPTY));
-        return GO_TO_PREVIOUS;
-    }
-
     /* Seed random number generator */
     srand(current_tick);
 
     /* Try to find an album with playable tracks */
     for (retries = 0; retries < ALBUM_ROULETTE_MAX_RETRIES; retries++)
     {
-        int random_index = rand() % album_count;
-
-        /* Second pass: find the album at random_index */
+        /* Use reservoir sampling to select random album in single pass */
         if (!tagcache_search(&tcs, tag_album))
         {
             splash(HZ*2, ID2P(LANG_TAGCACHE_BUSY));
             return GO_TO_PREVIOUS;
         }
 
-        i = 0;
+        album_count = 0;
         random_album_seek = -1;
         while (tagcache_get_next(&tcs, buf, sizeof(buf)))
         {
-            if (i == random_index)
-            {
+            album_count++;
+            /* Reservoir sampling: select this album with probability 1/album_count */
+            if ((rand() % album_count) == 0)
                 random_album_seek = tcs.result_seek;
-                break;
-            }
-            i++;
         }
         tagcache_search_finish(&tcs);
+
+        if (album_count == 0)
+        {
+            splash(HZ*2, ID2P(LANG_ALBUM_ROULETTE_EMPTY));
+            return GO_TO_PREVIOUS;
+        }
 
         if (random_album_seek < 0)
             continue;  /* Try another random album */

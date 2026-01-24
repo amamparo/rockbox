@@ -257,7 +257,7 @@ static struct add_to_pl_param addtopl_queue_shuf       = {PLAYLIST_INSERT_SHUFFL
 static struct add_to_pl_param addtopl_queue_last_shuf  = {PLAYLIST_INSERT_LAST_SHUFFLED, PL_QUEUE};
 
 static struct add_to_pl_param addtopl_replace          = {PLAYLIST_INSERT, PL_REPLACE};
-static struct add_to_pl_param addtopl_replace_shuffled = {PLAYLIST_INSERT_LAST_SHUFFLED, PL_REPLACE};
+static struct add_to_pl_param addtopl_replace_shuffled = {PLAYLIST_INSERT_LAST, PL_REPLACE};
 
 static void op_playlist_insert_selected(int position, bool queue)
 {
@@ -1374,11 +1374,12 @@ int onplay(char* file, int attr, int from_context, bool hotkey, int customaction
 #endif
     if (customaction == ONPLAY_CUSTOMACTION_SHUFFLE_SONGS)
     {
-        int returnCode = add_to_playlist(&addtopl_replace_shuffled);
-        if (returnCode == 1)
-            // User did not want to erase his current playlist, so let's show again the database main menu
-            return ONPLAY_RELOAD_DIR;
-        return ONPLAY_START_PLAY;
+        /* Use optimized single-pass shuffle for large libraries */
+        if (!warn_on_pl_erase())
+            return ONPLAY_RELOAD_DIR; /* User cancelled */
+        if (tagtree_shuffle_all_songs())
+            return ONPLAY_START_PLAY;
+        return ONPLAY_RELOAD_DIR;
     }
 
     push_current_activity(ACTIVITY_CONTEXTMENU);

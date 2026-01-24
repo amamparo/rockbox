@@ -2638,6 +2638,92 @@ bool tagtree_current_playlist_insert(int position, bool queue)
     return tagtree_insert_selection(position, queue, NULL, false);
 }
 
+/*
+ * Optimized single-pass shuffle of all songs in the database.
+ * Bypasses the normal two-pass approach (retrieve_entries + insert_all_playlist)
+ * by directly iterating the tagcache and inserting tracks in one pass.
+ * This is significantly faster for large libraries.
+ */
+bool tagtree_shuffle_all_songs(void)
+{
+    struct tagcache_search tcs;
+    char buf[MAX_PATH];
+    int track_count = 0;
+    unsigned long last_tick;
+
+    if (!tagcache_is_usable())
+    {
+        splash(HZ, ID2P(LANG_TAGCACHE_BUSY));
+        return false;
+    }
+
+    splash(0, ID2P(LANG_WAIT));
+    cpu_boost(true);
+
+    /* Create new playlist */
+    if (playlist_create(NULL, NULL) < 0)
+    {
+        cpu_boost(false);
+        splash(HZ, ID2P(LANG_FAILED));
+        return false;
+    }
+
+    /* Open tagcache search for filenames - single pass through all tracks */
+    if (!tagcache_search(&tcs, tag_filename))
+    {
+        cpu_boost(false);
+        splash(HZ, ID2P(LANG_TAGCACHE_BUSY));
+        return false;
+    }
+
+    struct playlist_insert_context context;
+    if (playlist_insert_context_create(NULL, &context, PLAYLIST_INSERT_LAST, false, false) < 0)
+    {
+        tagcache_search_finish(&tcs);
+        cpu_boost(false);
+        splash(HZ, ID2P(LANG_FAILED));
+        return false;
+    }
+
+    last_tick = current_tick + HZ/2;
+    splash_progress_set_delay(HZ / 2);
+
+    /* Single pass: iterate tagcache and insert directly into playlist */
+    while (tagcache_get_next(&tcs, buf, sizeof(buf)))
+    {
+        if (TIME_AFTER(current_tick, last_tick + HZ/4))
+        {
+            splashf(0, str(LANG_PLAYLIST_SEARCH_MSG), track_count, str(LANG_OFF_ABORT));
+            if (action_userabort(TIMEOUT_NOBLOCK))
+                break;
+            last_tick = current_tick;
+        }
+
+        if (playlist_insert_context_add(&context, buf) >= 0)
+            track_count++;
+
+        yield();
+    }
+
+    playlist_insert_context_release(&context);
+    tagcache_search_finish(&tcs);
+    cpu_boost(false);
+
+    if (track_count == 0)
+    {
+        splash(HZ, ID2P(LANG_FAILED));
+        return false;
+    }
+
+    /* Shuffle and start playback */
+    int start_index = 0;
+    if (global_settings.playlist_shuffle)
+        start_index = playlist_shuffle(current_tick, -1);
+
+    playlist_start(start_index, 0, 0);
+    return true;
+}
+
 
 int tagtree_add_to_playlist(const char* playlist, bool new_playlist)
 {
