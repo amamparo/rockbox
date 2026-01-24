@@ -47,7 +47,6 @@
 %xl(VB,vb.bmp,0,0)
 %xl(PBI,Playback_Icons.bmp,5)
 %xl(O,OffOn.bmp,24,0,2)
-%xl(A,album_icon.bmp,0,1,2)
 
 #__Show Main Display unless Hold Switch is on
 %?mh<%Vd(LockScreen)%?C<%Vd(LockScreenA)|%Vd(LockScreenB)>|%Vd(MainDisplay)%?bc<%Vd(batCharge)|%Vd(bat)>>
@@ -92,28 +91,28 @@ SHF%?ps<%xd(O,2)|%xd(O)>
 %Vl(MainDisplay,20,57,280,1,-)
 %dr(0,0,280,1)
 
+#__Track Title
+%Vl(MainDisplay,20,66,207,22,4)
+%al%s%?it<%it|%fn>
+
 #__Artist
-%Vl(MainDisplay,20,66,207,32,5)
+%Vl(MainDisplay,20,90,207,17,3)
 %al%s%?ia<%ia|NO TAG>
 
-#__Title/Album Indicator
-%Vl(MainDisplay,20,100,13,17,-)
-%t(8)%xd(Aa);%t(8)%?id<%xd(Ab)|%xd(Aa)>
-
-#__Track Title & Album Name
-%Vl(MainDisplay,35,99,190,17,3)
-%al%s%?it<%t(8)%it;%t(8)%id;|%fn>
+#__Album
+%Vl(MainDisplay,20,109,207,17,3)
+%al%s%?id<%id|>
 
 #__Channels
-%Vl(MainDisplay,-93,72,73,17,3)
+%Vl(MainDisplay,-93,76,73,17,3)
 %ac%?St(channels)<STEREO|MONO|CUSTOM|LEFT|RIGHT|KARAOKE>
 
 #__File Info
-%Vl(MainDisplay,-93,92,73,23,4)
+%Vl(MainDisplay,-93,95,73,23,4)
 %t(8)%ac%?fc<MP1|MP2|MP3|AIFF|WAV|VORBIS|FLAC|MPC|AC3|WAVPAC|ALAC|AAC|SHORTEN|SID|ADX|NSF|SPEEX|SPC|APE|WMA|WMAPRO|MOD|SAP|COOK|AAC|AC3|ATRAC3|CMC|CM3|CMR|CMS|DMC|DLT|MPT|MPD|RMT|TMC|TM8|TM2|ATRAC3|SMAF|AU|VOX|WAVE64|TRUEAUD|WMAVOX|MUSEPAK|AAC-HE|AY|VTX|GBS|HES|SGC|VGM|KSS|OPUS|AAC|UNKNOWN?>%Vs(invert);%t(8)%ac%?fv<~>%fbk%Vs(invert);%t(8)%ac%fkkHz%Vs(invert)
 
 #__Peak Meter Bars
-%Vl(MainDisplay,20,126,280,78,6)
+%Vl(MainDisplay,20,134,280,72,6)
 %pm
 
 #__Play/Pause Icons
