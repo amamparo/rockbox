@@ -1,7 +1,14 @@
-Update the My SNAZZY theme.
+modify My SNAZZY's wps theme...
 
-In the Now Playing screen, swap the track title and artist.
+Turn the track info section into three rows by breaking out the second row into two separate ones of equal height/font size.
 
-I want the track title to be displayed in the large area above and the artist to be displayed in the smaller area below (cycling between track artist and album)
+The track info rows should be sorted as follows:
+track title
+artist
+album
 
-For the artist icon, use whatever icon corresponds to a microphone/recorder/person
+get rid of any icons to the left of the track info rows. the context of each row will be implied.
+
+In order to make room for the third row, increase the height of the WPS screen a bit, and reduce the height of the track title row a bit.
+
+The track info section also shares a visual row with the channels/file info section, so after increasing the height of the screen, make sure that the channels/file info section is vertically centered and aligned with the track info.
