@@ -459,6 +459,7 @@ extern struct menu_item_ex
         playlist_options,
         info_menu,
         system_menu;
+
 static const struct root_items items[] = {
     [GO_TO_FILEBROWSER] =   { browser, (void*)GO_TO_FILEBROWSER, &file_menu},
 #ifdef HAVE_TAGCACHE
@@ -537,23 +538,13 @@ static struct menu_callback_with_desc root_menu_desc = {
 
 static struct menu_table menu_table[] = {
     /* Order here represents the default ordering */
-    { "bookmarks", &bookmarks },
-    { "files", &file_browser },
+    { "wps", &wps_item },
 #ifdef HAVE_TAGCACHE
     { "database", &db_browser },
 #endif
-    { "wps", &wps_item },
-    { "settings", &menu_ },
-#ifdef HAVE_RECORDING
-    { "recording", &rec },
-#endif
-#if CONFIG_TUNER
-    { "radio", &fm },
-#endif
     { "playlists", &playlists },
     { "plugins", &rocks_browser },
-    { "system_menu", &system_menu_ },
-    { "shortcuts", &shortcut_menu },
+    { "settings", &menu_ },
 };
 #define MAX_MENU_ITEMS (sizeof(menu_table) / sizeof(struct menu_table))
 static struct menu_item_ex *root_menu__[MAX_MENU_ITEMS];
