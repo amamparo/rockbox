@@ -33,10 +33,23 @@ usage() {
 build_image() {
     echo "Building Docker image '$IMAGE_NAME'..."
     docker build -t "$IMAGE_NAME" "$SCRIPT_DIR"
+    # Save Dockerfile hash to detect future changes
+    local hash_file="$OUTPUT_DIR/.docker_image_hash"
+    mkdir -p "$OUTPUT_DIR"
+    (md5 -q "$SCRIPT_DIR/Dockerfile" 2>/dev/null || md5sum "$SCRIPT_DIR/Dockerfile" | cut -d' ' -f1) > "$hash_file"
 }
 
 ensure_image() {
+    local hash_file="$OUTPUT_DIR/.docker_image_hash"
+    local current_hash
+    current_hash=$(md5 -q "$SCRIPT_DIR/Dockerfile" 2>/dev/null || md5sum "$SCRIPT_DIR/Dockerfile" | cut -d' ' -f1)
+
+    # Rebuild if image doesn't exist or Dockerfile changed
     if ! docker image inspect "$IMAGE_NAME" >/dev/null 2>&1; then
+        build_image
+    elif [ ! -f "$hash_file" ] || [ "$(cat "$hash_file")" != "$current_hash" ]; then
+        echo "Dockerfile changed, rebuilding image..."
+        docker rmi "$IMAGE_NAME" 2>/dev/null || true
         build_image
     fi
 }

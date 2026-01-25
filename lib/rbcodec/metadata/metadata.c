@@ -426,7 +426,9 @@ bool get_metadata_ex(struct mp3entry* id3, int fd, const char* trackname, int fl
     bool success = true;
     const struct afmt_entry *entry;
     int logfd = 0;
+#ifndef __PCTOOL__
     DEBUGF("Read metadata for %s\n", trackname);
+#endif
     const char *res_str = "\n";
 
     /* Clear the mp3entry to avoid having bogus pointers appear */

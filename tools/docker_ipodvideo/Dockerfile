@@ -23,7 +23,8 @@ RUN apt update && \
     autoconf \
     libmpc-dev \
     gawk \
-    wget && \
+    wget \
+    libsdl2-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Clone rockbox and build ARM toolchain

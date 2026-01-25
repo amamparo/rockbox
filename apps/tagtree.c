@@ -905,11 +905,19 @@ static bool parse_search(struct menu_entry *entry, const char *str)
     return true;
 }
 
+/* Skip "The " prefix for sorting (case insensitive) */
+static const char *skip_the_prefix(const char *s)
+{
+    if (strncasecmp(s, "The ", 4) == 0)
+        return s + 4;
+    return s;
+}
+
 static int compare(const void *p1, const void *p2)
 {
     struct tagentry *e1 = (struct tagentry *)p1;
     struct tagentry *e2 = (struct tagentry *)p2;
-    return qsort_fn(e1->name, e2->name, MAX_PATH);
+    return qsort_fn(skip_the_prefix(e1->name), skip_the_prefix(e2->name), MAX_PATH);
 }
 
 static void tagtree_buffer_event(unsigned short id, void *ev_data)

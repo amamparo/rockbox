@@ -8,14 +8,14 @@
 #
 # Install Rockbox to a connected iPod
 #
+# Prerequisites: Run 'make mount' first to mount the iPod
+#
 # This script:
-# 1. Detects a connected iPod via diskutil
-# 2. Mounts it if needed
-# 3. Extracts rockbox.zip to local cache (if newer)
-# 4. Syncs .rockbox to iPod using rsync (fast incremental updates)
-# 5. Installs third-party themes from themes/thirdparty/*.zip
-# 6. Installs first-party themes from themes/firstparty/*/
-# 7. Ejects the iPod
+# 1. Gets the iPod mount point from mount_ipod.sh
+# 2. Extracts rockbox.zip to local cache (if newer)
+# 3. Syncs .rockbox to iPod using rsync (fast incremental updates)
+# 4. Installs third-party themes from themes/thirdparty/*.zip
+# 5. Installs first-party themes from themes/firstparty/*/
 
 set -e
 
@@ -34,6 +34,15 @@ if [ ! -f "$ZIP_FILE" ]; then
     echo "Run 'make build' first to create the firmware package"
     exit 1
 fi
+
+# Get iPod mount point from shared mount script
+MOUNT_POINT=$("$SCRIPT_DIR/mount_ipod.sh" --get) || {
+    echo "Error: iPod not mounted"
+    echo "Run 'make mount' first"
+    exit 1
+}
+
+echo "Using iPod at $MOUNT_POINT"
 
 # Extract to local cache if zip is newer than cache
 update_cache() {
@@ -103,79 +112,6 @@ install_themes() {
     fi
 }
 
-# Find iPod disk identifier
-# Look for Apple_HFS or Windows_FAT32 partitions on iPod devices
-find_ipod() {
-    # diskutil list shows all disks; iPods typically have "Apple_HFS" or "Windows_FAT32"
-    # partition with "IPOD" in the name, or we can identify by the disk structure
-    # iPods have a small firmware partition followed by a larger data partition
-
-    # First, try to find by volume name containing "IPOD" (case insensitive)
-    local disk_info
-    disk_info=$(diskutil list 2>/dev/null)
-
-    # Look for mounted iPod volumes
-    local ipod_disk=""
-
-    # Check all external physical disks for iPod-like structure
-    for disk in $(diskutil list | grep "^/dev/disk" | grep "external, physical" | awk '{print $1}' | sed 's/://'); do
-        # iPods typically have partition 1 as firmware and partition 2 as data
-        # Check if this disk has an Apple_HFS or Windows_FAT32 partition that could be an iPod
-        if diskutil info "${disk}s2" &>/dev/null; then
-            local vol_name
-            vol_name=$(diskutil info "${disk}s2" 2>/dev/null | grep "Volume Name:" | sed 's/.*Volume Name: *//')
-            if [ -n "$vol_name" ]; then
-                # Found a candidate - external disk with a second partition
-                ipod_disk="${disk}s2"
-                echo "$ipod_disk"
-                return 0
-            fi
-        fi
-    done
-
-    return 1
-}
-
-# Get current mount point of a disk
-get_mount_point() {
-    local disk="$1"
-    diskutil info "$disk" 2>/dev/null | grep "Mount Point:" | sed 's/.*Mount Point: *//'
-}
-
-# Main logic
-echo "Looking for iPod..."
-
-IPOD_DISK=$(find_ipod) || {
-    echo "Error: No iPod detected"
-    echo "Please connect your iPod and try again"
-    exit 1
-}
-
-echo "Found iPod at $IPOD_DISK"
-
-# Check current mount status
-CURRENT_MOUNT=$(get_mount_point "$IPOD_DISK")
-
-if [ -z "$CURRENT_MOUNT" ]; then
-    # Not mounted, use direct mount
-    echo "iPod not mounted, mounting..."
-    MOUNT_POINT="/Volumes/IPOD"
-    sudo mkdir -p "$MOUNT_POINT"
-    if sudo mount -t msdos "$IPOD_DISK" "$MOUNT_POINT"; then
-        CURRENT_MOUNT="$MOUNT_POINT"
-        # Disable Spotlight indexing
-        touch "$MOUNT_POINT/.metadata_never_index" 2>/dev/null || true
-    fi
-fi
-
-if [ -z "$CURRENT_MOUNT" ]; then
-    echo "Error: Failed to mount iPod"
-    exit 1
-fi
-
-MOUNT_POINT="$CURRENT_MOUNT"
-echo "iPod mounted at $MOUNT_POINT"
-
 # Update local cache from zip
 update_cache
 
@@ -204,18 +140,5 @@ fi
 # Install third-party themes
 install_themes
 
-echo "Rockbox installed successfully"
-
-# Eject the iPod
-echo "Ejecting iPod..."
-if ! diskutil eject "$IPOD_DISK" 2>/dev/null; then
-    # Finder often holds the volume open; try unmount force then eject
-    echo "Normal eject failed, trying force unmount..."
-    diskutil unmount force "$MOUNT_POINT" 2>/dev/null || true
-    if ! diskutil eject "$IPOD_DISK" 2>/dev/null; then
-        echo "Warning: Could not eject iPod. Close any Finder windows showing the iPod and eject manually."
-        exit 0
-    fi
-fi
-
-echo "Done! You can safely disconnect your iPod."
+echo "Rockbox installed successfully!"
+echo "Run 'make eject' when ready to disconnect."

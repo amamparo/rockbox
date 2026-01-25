@@ -13,16 +13,22 @@
 #   make rbutil       - Build Rockbox Utility for macOS (native)
 #   make clean        - Remove build artifacts
 
-.PHONY: help build rbutil install clean
+.PHONY: help build rbutil mount install database build_database update_database eject clean
 
 help:
 	@echo "Rockbox Build System"
 	@echo ""
-	@echo "Usage:"
-	@echo "  make build   - Build Rockbox firmware for iPod Video 5.5G (via Docker)"
-	@echo "  make install - Install Rockbox to connected iPod"
-	@echo "  make rbutil  - Build Rockbox Utility for macOS Apple Silicon (native)"
-	@echo "  make clean   - Remove build artifacts from output/"
+	@echo "Build targets:"
+	@echo "  make build    - Build Rockbox firmware for iPod Video 5.5G (via Docker)"
+	@echo "  make rbutil   - Build Rockbox Utility for macOS Apple Silicon (native)"
+	@echo "  make clean    - Remove build artifacts from output/"
+	@echo ""
+	@echo "iPod targets:"
+	@echo "  make mount          - Detect and mount connected iPod"
+	@echo "  make install        - Install Rockbox to iPod (runs mount first)"
+	@echo "  make build_database - Full rebuild of music database (clears existing)"
+	@echo "  make update_database - Update database (only new/changed files)"
+	@echo "  make eject          - Safely eject iPod"
 	@echo ""
 	@echo "Artifacts are placed in output/"
 	@echo ""
@@ -31,8 +37,23 @@ help:
 build:
 	./tools/docker_ipodvideo/build.sh build
 
-install:
+mount:
+	./tools/mount_ipod.sh
+
+install: mount
 	./tools/install_ipod.sh
+
+build_database: mount
+	./tools/build_database.sh --full
+
+update_database: mount
+	./tools/build_database.sh
+
+# Alias for backwards compatibility
+database: build_database
+
+eject:
+	./tools/mount_ipod.sh --eject
 
 rbutil:
 	./utils/rbutilqt/macos/build.sh build

@@ -403,6 +403,11 @@ static int processed_dir_count;
 static volatile int write_lock;
 static volatile int read_lock;
 
+#ifdef __PCTOOL__
+/* Progress counter for metadata processing */
+static int processed_file_count;
+#endif /* __PCTOOL__ */
+
 static bool delete_entry(long idx_id);
 
 static inline void str_setlen(char *buf, size_t len)
@@ -2457,6 +2462,14 @@ static bool tempbuf_insert(char *str, int id, int idx_id, bool unique)
     return true;
 }
 
+/* Skip "The " prefix for sorting (case insensitive) */
+static const char *skip_the_prefix(const char *s)
+{
+    if (strncasecmp(s, "The ", 4) == 0)
+        return s + 4;
+    return s;
+}
+
 static int compare(const void *p1, const void *p2)
 {
     do_timed_yield();
@@ -2473,7 +2486,7 @@ static int compare(const void *p1, const void *p2)
     else if (strcmp(e2->str, UNTAGGED) == 0)
         return 1;
 
-    return strncasecmp(e1->str, e2->str, TAG_MAXLEN);
+    return strncasecmp(skip_the_prefix(e1->str), skip_the_prefix(e2->str), TAG_MAXLEN);
 }
 
 static int tempbuf_sort(int fd)
@@ -4920,6 +4933,15 @@ static bool check_dir(const char *dirname, int add_files)
                     sizeof (curpath) - len);
 
         processed_dir_count++;
+#ifdef __PCTOOL__
+        /* Print progress with spinner */
+        if (processed_dir_count % 100 == 0) {
+            static const char spinner[] = "|/-\\";
+            fprintf(stderr, "\r[%c] Finding files: %d...   ",
+                    spinner[(processed_dir_count / 100) % 4], processed_dir_count);
+            fflush(stderr);
+        }
+#endif
         if (info.attribute & ATTR_DIRECTORY)
         {
 #ifndef SIMULATOR
@@ -4933,6 +4955,16 @@ static bool check_dir(const char *dirname, int add_files)
         }
         else if (add_files)
         {
+#ifdef __PCTOOL__
+            /* Add entry to the temporary db file with progress reporting */
+            add_tagcache(curpath, info.mtime);
+            processed_file_count++;
+
+            if (processed_file_count % 100 == 0) {
+                fprintf(stderr, "\r[%d] Processing metadata...   ", processed_file_count);
+                fflush(stderr);
+            }
+#else
             tc_stat.curentry = curpath;
 
             /* Add a new entry to the temporary db file. */
@@ -4943,6 +4975,7 @@ static bool check_dir(const char *dirname, int add_files)
                 yield();
 
             tc_stat.curentry = NULL;
+#endif
         }
 
         str_setlen(curpath, len);
@@ -4976,6 +5009,10 @@ void do_tagcache_build(const char *path[])
     data_size = 0;
     total_entry_count = 0;
     processed_dir_count = 0;
+
+#ifdef __PCTOOL__
+    processed_file_count = 0;
+#endif
 
 #ifdef HAVE_DIRCACHE
     dircache_wait();
@@ -5079,6 +5116,10 @@ void do_tagcache_build(const char *path[])
     }
     free_search_roots(&roots_ll[0]);
 
+#ifdef __PCTOOL__
+    fprintf(stderr, "\r[%d] Processing complete.              \n", processed_file_count);
+#endif
+
     /* Write the header. */
     header.magic = TAGCACHE_MAGIC;
     header.datasize = data_size;
@@ -5103,6 +5144,9 @@ void do_tagcache_build(const char *path[])
     /* Commit changes to the database. */
 #ifdef __PCTOOL__
     allocate_tempbuf();
+#endif
+#ifdef __PCTOOL__
+    fprintf(stderr, "Committing %ld entries to database...\n", (long)header.entry_count);
 #endif
     if (commit())
     {
