@@ -657,6 +657,19 @@ MENUITEM_RETURNVALUE(album_roulette_item, ID2P(LANG_ALBUM_ROULETTE), GO_TO_ALBUM
 MENUITEM_RETURNVALUE(system_menu_, ID2P(LANG_SYSTEM), GO_TO_SYSTEM_SCREEN,
                      NULL, Icon_System_menu);
 
+MAKE_MENU(more_menu, ID2P(LANG_MORE), NULL, Icon_Submenu,
+          &file_browser,
+          &shortcut_menu,
+#ifdef HAVE_RECORDING
+          &rec,
+#endif
+#if CONFIG_TUNER
+          &fm,
+#endif
+          &bookmarks,
+          &rocks_browser,
+          &system_menu_);
+
 struct menu_item_ex root_menu_;
 static struct menu_callback_with_desc root_menu_desc = {
         item_callback, ID2P(LANG_ROCKBOX_TITLE), Icon_Rockbox };
@@ -671,9 +684,8 @@ static struct menu_table menu_table[] = {
 #ifdef HAVE_TAGCACHE
     { "album_roulette", &album_roulette_item },
 #endif
-    { "plugins", &rocks_browser },
-    { "system", &system_menu_ },
     { "settings", &menu_ },
+    { "more", &more_menu },
 };
 #define MAX_MENU_ITEMS (sizeof(menu_table) / sizeof(struct menu_table))
 static struct menu_item_ex *root_menu__[MAX_MENU_ITEMS];

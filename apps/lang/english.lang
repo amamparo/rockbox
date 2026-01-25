@@ -17093,3 +17093,17 @@
     *: "No albums found"
   </voice>
 </phrase>
+<phrase>
+  id: LANG_MORE
+  desc: Main menu item containing additional menu options
+  user: core
+  <source>
+    *: "More"
+  </source>
+  <dest>
+    *: "More"
+  </dest>
+  <voice>
+    *: "More"
+  </voice>
+</phrase>
