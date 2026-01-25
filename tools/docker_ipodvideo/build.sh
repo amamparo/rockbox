@@ -67,6 +67,10 @@ do_build() {
             set -e
             # Copy source to writable location (build modifies tools/)
             cp -a /src /rockbox
+            # Remove host-compiled tool binaries so they get rebuilt for Linux
+            rm -f /rockbox/tools/bmp2rb /rockbox/tools/scramble /rockbox/tools/convbdf \
+                  /rockbox/tools/mkboot /rockbox/tools/rdf2binary /rockbox/tools/uclpack \
+                  /rockbox/tools/codepages
             mkdir -p /rockbox/build
             cd /rockbox/build
             ../tools/configure --target=22 --type=N
