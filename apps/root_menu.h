@@ -58,6 +58,7 @@ enum {
     GO_TO_PLUGIN,
 #ifdef HAVE_TAGCACHE
     GO_TO_ALBUM_ROULETTE,
+    GO_TO_SHUFFLE_ALL,
 #endif
     /* Do Not add any items above here unless you want it to be able to
        be the "start screen" after a boot up. The setting in settings_list.c

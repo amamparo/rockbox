@@ -562,6 +562,15 @@ static int album_roulette(void* param)
     playlist_start(start_index, 0, 0);
     return GO_TO_WPS;
 }
+
+static int shuffle_all(void* param)
+{
+    (void)param;
+
+    if (tagtree_shuffle_all_songs())
+        return GO_TO_WPS;
+    return GO_TO_PREVIOUS;
+}
 #endif /* HAVE_TAGCACHE */
 
 /* These are all static const'd from apps/menus/ *.c
@@ -601,6 +610,7 @@ static const struct root_items items[] = {
                                                         &playlist_options },
 #ifdef HAVE_TAGCACHE
     [GO_TO_ALBUM_ROULETTE] = { album_roulette, NULL, NULL },
+    [GO_TO_SHUFFLE_ALL] = { shuffle_all, NULL, NULL },
 #endif
     [GO_TO_PLAYLIST_VIEWER] = { playlist_view, NULL, &playlist_options },
     [GO_TO_SYSTEM_SCREEN] = { miscscrn, &info_menu, &system_menu },
@@ -634,7 +644,7 @@ static char *get_wps_item_name(int selected_item, void * data,
     return ID2P(LANG_RESUME_PLAYBACK);
 }
 MENUITEM_RETURNVALUE_DYNTEXT(wps_item, GO_TO_WPS, NULL, get_wps_item_name,
-                                NULL, NULL, Icon_Playback_menu);
+                                NULL, NULL, Icon_Cursor);
 #ifdef HAVE_RECORDING
 MENUITEM_RETURNVALUE(rec, ID2P(LANG_RECORDING), GO_TO_RECSCREEN,
                         NULL, Icon_Recording);
@@ -653,6 +663,8 @@ MENUITEM_RETURNVALUE(playlists, ID2P(LANG_PLAYLISTS), GO_TO_PLAYLISTS_SCREEN,
 #ifdef HAVE_TAGCACHE
 MENUITEM_RETURNVALUE(album_roulette_item, ID2P(LANG_ALBUM_ROULETTE), GO_TO_ALBUM_ROULETTE,
                      NULL, Icon_Questionmark);
+MENUITEM_RETURNVALUE(shuffle_all_item, ID2P(LANG_SHUFFLE_SONGS), GO_TO_SHUFFLE_ALL,
+                     NULL, Icon_Playback_menu);
 #endif
 MENUITEM_RETURNVALUE(system_menu_, ID2P(LANG_SYSTEM), GO_TO_SYSTEM_SCREEN,
                      NULL, Icon_System_menu);
@@ -683,6 +695,7 @@ static struct menu_table menu_table[] = {
     { "playlists", &playlists },
 #ifdef HAVE_TAGCACHE
     { "album_roulette", &album_roulette_item },
+    { "shuffle_all", &shuffle_all_item },
 #endif
     { "settings", &menu_ },
     { "more", &more_menu },
