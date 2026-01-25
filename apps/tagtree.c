@@ -124,6 +124,18 @@ enum variables {
 #define UNIQBUF_SIZE (64*1024)
 static uint32_t uniqbuf[UNIQBUF_SIZE / sizeof(uint32_t)];
 
+/* Artist seek for current album navigation (used to disambiguate albums with same name) */
+static int32_t current_album_artist_seek = -1;
+
+/* Storage for artist disambiguation picker */
+#define MAX_ARTIST_CHOICES 16
+#define ARTIST_NAME_LEN 48
+static struct {
+    int32_t seek;
+    char name[ARTIST_NAME_LEN];
+} artist_choices[MAX_ARTIST_CHOICES];
+static int artist_choice_count = 0;
+
 #define MAX_TAGS 5
 #define MAX_MENU_ID_SIZE 32
 
@@ -1647,6 +1659,13 @@ static int retrieve_entries(struct tree_context *c, int offset, bool init)
         {
             tagcache_search_add_filter(&tcs, csi->tagorder[i],
                                        csi->result_seek[i]);
+
+            /* Add albumartist filter when browsing under a disambiguated album */
+            if (csi->tagorder[i] == tag_album && current_album_artist_seek >= 0)
+            {
+                tagcache_search_add_filter(&tcs, tag_albumartist,
+                                           current_album_artist_seek);
+            }
         }
     }
 
@@ -2037,6 +2056,93 @@ int tagtree_load(struct tree_context* c)
     return count;
 }
 
+/* Callback for artist disambiguation picker list */
+static const char* artist_picker_get_name(int selected_item, void *data,
+                                          char *buffer, size_t buffer_len)
+{
+    (void)data;
+    (void)buffer;
+    (void)buffer_len;
+    if (selected_item >= 0 && selected_item < artist_choice_count)
+        return artist_choices[selected_item].name;
+    return "";
+}
+
+/* Compare function for sorting artist choices alphabetically */
+static int compare_artist_choices(const void *a, const void *b)
+{
+    const struct {
+        int32_t seek;
+        char name[ARTIST_NAME_LEN];
+    } *ea = a, *eb = b;
+    return strcasecmp(ea->name, eb->name);
+}
+
+/* Show artist disambiguation picker when entering an album with multiple artists.
+ * Returns:
+ *   >= 0: artist seek to use for filtering
+ *   -1: no disambiguation needed (only one artist)
+ *   -2: user cancelled (should abort navigation) */
+#define PICKER_CANCELLED -2
+static int32_t show_artist_disambiguation_picker(int32_t album_seek)
+{
+    struct tagcache_search tcs;
+    char buf[ARTIST_NAME_LEN];
+
+    /* Query for all albumartists for this album */
+    if (!tagcache_search(&tcs, tag_albumartist))
+        return -1;
+
+    tagcache_search_add_filter(&tcs, tag_album, album_seek);
+    /* Don't use uniqbuf here - it's shared with retrieve_entries and we don't
+     * want to interfere with it. For a single album there shouldn't be many
+     * duplicate artist entries anyway. */
+
+    artist_choice_count = 0;
+    while (tagcache_get_next(&tcs, buf, sizeof(buf)) &&
+           artist_choice_count < MAX_ARTIST_CHOICES)
+    {
+        /* Skip if we already have this artist (manual dedup) */
+        bool duplicate = false;
+        for (int i = 0; i < artist_choice_count; i++)
+        {
+            if (strcasecmp(artist_choices[i].name, buf) == 0)
+            {
+                duplicate = true;
+                break;
+            }
+        }
+        if (duplicate)
+            continue;
+
+        artist_choices[artist_choice_count].seek = tcs.result_seek;
+        strmemccpy(artist_choices[artist_choice_count].name, buf, ARTIST_NAME_LEN);
+        artist_choice_count++;
+    }
+    tagcache_search_finish(&tcs);
+
+    /* Only one artist, no disambiguation needed */
+    if (artist_choice_count <= 1)
+        return -1;
+
+    /* Sort artists alphabetically */
+    qsort(artist_choices, artist_choice_count, sizeof(artist_choices[0]),
+          compare_artist_choices);
+
+    /* Show picker */
+    struct simplelist_info info;
+    simplelist_info_init(&info, str(LANG_ID3_ALBUMARTIST), artist_choice_count, NULL);
+    info.get_name = artist_picker_get_name;
+
+    simplelist_show_list(&info);
+
+    /* User cancelled with back button */
+    if (info.selection < 0)
+        return PICKER_CANCELLED;
+
+    return artist_choices[info.selection].seek;
+}
+
 /* Enters menu or table for selected item in the database.
  *
  * Call this with the is_visible parameter set to false to
@@ -2221,6 +2327,26 @@ int tagtree_enter(struct tree_context* c, bool is_visible)
 
             c->currtable = newextra;
             csi->result_seek[c->currextra] = seek;
+
+            /* Show artist disambiguation picker when entering an album at level 0 */
+            if (c->currextra == 0 && csi->tagorder[c->currextra] == tag_album)
+            {
+                int32_t artist_seek = show_artist_disambiguation_picker(seek);
+                if (artist_seek == PICKER_CANCELLED)
+                {
+                    /* User cancelled - abort navigation */
+                    c->dirlevel--;
+                    tree_unlock_cache(c);
+                    core_unpin(tagtree_handle);
+                    return 0;
+                }
+                current_album_artist_seek = artist_seek;
+            }
+            else if (c->currextra == 0)
+            {
+                /* Reset when starting new navigation */
+                current_album_artist_seek = -1;
+            }
             if (c->currextra < csi->tagorder_count-1)
                 c->currextra++;
             else
@@ -2272,6 +2398,10 @@ void tagtree_exit(struct tree_context* c, bool is_visible)
     {
         DEBUGF("Tagtree nothing to exit\n");
     }
+
+    /* Reset album artist seek when exiting back to album level or root */
+    if (c->dirlevel == 0 || extra_history[c->dirlevel] == 0)
+        current_album_artist_seek = -1;
 
     if (is_visible)
         c->selected_item = selected_item_history[c->dirlevel];
