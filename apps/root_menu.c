@@ -475,29 +475,36 @@ static int album_roulette(void* param)
     /* Try to find an album with playable tracks */
     for (retries = 0; retries < ALBUM_ROULETTE_MAX_RETRIES; retries++)
     {
-        /* Use reservoir sampling to select random album in single pass */
+        /* Pick a random album by index - much faster than reservoir sampling */
         if (!tagcache_search(&tcs, tag_album))
         {
             splash(HZ*2, ID2P(LANG_TAGCACHE_BUSY));
             return GO_TO_PREVIOUS;
         }
 
-        album_count = 0;
-        random_album_seek = -1;
-        while (tagcache_get_next(&tcs, buf, sizeof(buf)))
-        {
-            album_count++;
-            /* Reservoir sampling: select this album with probability 1/album_count */
-            if ((rand() % album_count) == 0)
-                random_album_seek = tcs.result_seek;
-        }
-        tagcache_search_finish(&tcs);
-
+        /* entry_count is set from the tag header - no iteration needed */
+        album_count = tcs.entry_count;
         if (album_count == 0)
         {
+            tagcache_search_finish(&tcs);
             splash(HZ*2, ID2P(LANG_ALBUM_ROULETTE_EMPTY));
             return GO_TO_PREVIOUS;
         }
+
+        /* Pick random index and skip to it */
+        int target = rand() % album_count;
+        int i = 0;
+        random_album_seek = -1;
+        while (tagcache_get_next(&tcs, buf, sizeof(buf)))
+        {
+            if (i == target)
+            {
+                random_album_seek = tcs.result_seek;
+                break;
+            }
+            i++;
+        }
+        tagcache_search_finish(&tcs);
 
         if (random_album_seek < 0)
             continue;  /* Try another random album */
