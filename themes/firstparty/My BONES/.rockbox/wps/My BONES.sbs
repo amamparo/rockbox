@@ -25,10 +25,6 @@
 #__UI Viewport (height 182 = 7 lines at 26px each, bottom margin = 30px)
 %Vi(-,30,28,260,182,3)%Vf(-)%Vb(-)
 #
-#__Hold indicator (positioned in top margin, above UI viewport)
-%V(30,8,-,-,2)
-%?mh<HOLD|>
-#
 #
 #__USB screen
 %?if(%cs, =, 21)<%Vd(usbScreen)>
