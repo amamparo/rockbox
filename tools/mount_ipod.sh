@@ -182,6 +182,13 @@ do_mount() {
         echo "Mounting iPod..."
         if sudo mount -t msdos -o rw,nodev,nosuid "$ipod_disk" "$manual_mount" 2>/dev/null; then
             mount_point="$manual_mount"
+            # Wait for mount to complete
+            for i in 1 2 3 4 5; do
+                if [ -d "$mount_point" ] && is_real_mount "$mount_point"; then
+                    break
+                fi
+                sleep 0.5
+            done
         else
             echo "Error: Failed to mount iPod"
             echo ""
@@ -197,7 +204,7 @@ do_mount() {
     fi
 
     # Verify mount point is actually accessible
-    if [ ! -d "$mount_point" ]; then
+    if [ ! -d "$mount_point" ] || ! is_real_mount "$mount_point"; then
         echo "Error: Mount point $mount_point is not accessible"
         echo "Try disconnecting and reconnecting the iPod"
         return 1

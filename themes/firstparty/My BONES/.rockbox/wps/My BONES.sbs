@@ -23,7 +23,7 @@
 %xl(X,bg_skull.bmp,0,0)
 #
 #__UI Viewport
-%Vi(-,30,60,260,120,3)%Vf(-)%Vb(-)
+%Vi(-,30,30,260,180,3)%Vf(-)%Vb(-)
 #
 #__Hold indicator
 %V(30,30,-,-,3)
@@ -40,10 +40,10 @@
 %Vl(usbScreen,30,30,260,-,3)
 %acUSB%Vs(invert)
 #
-%Vl(usbScreen,30,200,260,-,2)
+%Vl(usbScreen,30,195,260,-,2)
 %ac! EJECT BEFORE DISCONNECTING !
 #
 #__Skull
-%Vl(usbScreen,30,60,260,130,-)
+%Vl(usbScreen,30,55,260,135,-)
 %xd(X)
 #

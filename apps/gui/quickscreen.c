@@ -52,6 +52,7 @@
  /* pixels between the 2 center items minimum or between text and icons,
   * and between text and parent boundaries */
 #define MARGIN 10
+#define OUTER_MARGIN 30
 #define CENTER_ICONAREA_SIZE (MARGIN+8*2)
 
 static void quickscreen_fix_viewports(struct gui_quickscreen *qs,
@@ -369,9 +370,14 @@ static int gui_syncquickscreen_run(struct gui_quickscreen * qs, int button_enter
         screens[i].scroll_stop();
         /* Disable theme completely to prevent skin interference/flickering */
         viewportmanager_theme_enable(i, false, &parent[i]);
-        /* Clear the entire screen first */
+        /* Clear the entire screen first (before applying margins) */
         screens[i].set_viewport(&parent[i]);
         screens[i].clear_display();
+        /* Apply 30px outer margin to quickscreen content area */
+        parent[i].x += OUTER_MARGIN;
+        parent[i].y += OUTER_MARGIN;
+        parent[i].width -= OUTER_MARGIN * 2;
+        parent[i].height -= OUTER_MARGIN * 2;
         quickscreen_fix_viewports(qs, &screens[i], &parent[i], vps[i], &vp_icons[i]);
         gui_quickscreen_draw(qs, &screens[i], &parent[i], vps[i], &vp_icons[i]);
     }

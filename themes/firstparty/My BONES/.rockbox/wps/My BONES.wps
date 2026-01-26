@@ -41,20 +41,24 @@
 %Vl(mainDisplay,0,0,320,240,-)
 #
 #__Track Number
-%Vl(mainDisplay,30,40,120,-,2)
+%Vl(mainDisplay,30,30,120,-,2)
 %alTRACK %in
 #
 #__Shuffle
-%Vl(mainDisplay,-110,40,80,-,2)
+%Vl(mainDisplay,-110,30,80,-,2)
 %ac%?ps<SHUFFLE ON>%Vs(invert)
 #
 #__Track Title
-%Vl(mainDisplay,30,60,260,-,4)
+%Vl(mainDisplay,30,52,260,-,3)
 %s%it
 #
-#__Artist/Album
-%Vl(mainDisplay,30,90,260,-,3)
-%s%t(6)%ia;%s%t(6)%id
+#__Artist
+%Vl(mainDisplay,30,78,260,-,2)
+%s%ia
+#
+#__Album
+%Vl(mainDisplay,30,98,260,-,2)
+%s%id
 #
 #__File Type
 %Vl(mainDisplay,30,120,60,-,2)
@@ -81,11 +85,11 @@
 %pb(0,0,260,21,PB,backdrop,PBB)
 #
 #__Time Elapsed
-%Vl(mainDisplay,30,190,60,15,2)
+%Vl(mainDisplay,30,195,60,15,2)
 %al%pc
 #
 #__Time Total
-%Vl(mainDisplay,-90,190,60,15,2)
+%Vl(mainDisplay,-90,195,60,15,2)
 %ar%pt
 #
 #
