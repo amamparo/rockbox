@@ -39,6 +39,8 @@
 #include "option_select.h"
 #include "debug.h"
 #include "shortcuts.h"
+#include "misc.h"
+#include "powermgmt.h"
 #ifdef HAVE_ALBUMART
 #include "playback.h"
 #endif
@@ -177,14 +179,47 @@ static void gui_quickscreen_draw(const struct gui_quickscreen *qs,
     unsigned const char *title, *value;
     int temp;
     struct viewport *last_vp = display->set_viewport(parent);
+
+    /* Stop all scrolling first to prevent interference during redraw */
+    for (i = 0; i < QUICKSCREEN_ITEM_COUNT; i++)
+        display->scroll_stop_viewport(&vps[i]);
+
+    /* Clear the entire parent area */
     display->clear_viewport();
 
+    /* Draw all item viewports */
     for (i = 0; i < QUICKSCREEN_ITEM_COUNT; i++)
     {
         struct viewport *vp = &vps[i];
-        if (!qs->items[i])
-            continue;
         display->set_viewport(vp);
+
+        if (!qs->items[i])
+        {
+            /* Special case: show sleep timer status for empty TOP slot */
+            if (i == QUICKSCREEN_TOP)
+            {
+                int sleep_sec = get_sleep_timer();
+                if (sleep_sec > 0)
+                {
+                    int mins = sleep_sec / 60;
+                    snprintf(buf, MAX_PATH, "%s: %d min",
+                             str(LANG_SLEEP_TIMER), mins);
+                }
+                else
+                {
+                    snprintf(buf, MAX_PATH, "%s: %s",
+                             str(LANG_SLEEP_TIMER), str(LANG_OFF));
+                }
+                display->puts(0, 0, buf);
+            }
+            /* Special case: show "Now Playing" for empty BOTTOM slot */
+            else if (i == QUICKSCREEN_BOTTOM)
+            {
+                title = str(LANG_NOW_PLAYING);
+                display->puts(0, 0, title);
+            }
+            continue;
+        }
 
         title = P2STR(ID2P(qs->items[i]->lang_id));
         temp = option_value_as_int(qs->items[i]);
@@ -195,22 +230,22 @@ static void gui_quickscreen_draw(const struct gui_quickscreen *qs,
         {
             char text[MAX_PATH];
             snprintf(text, MAX_PATH, "%s: %s", title, value);
-            display->puts_scroll(0, 0, text);
+            display->puts(0, 0, text);
         }
         else
         {
-            display->puts_scroll(0, 0, title);
-            display->puts_scroll(0, 1, value);
+            display->puts(0, 0, title);
+            display->puts(0, 1, value);
         }
     }
-    /* draw the icons */
+
+    /* Draw the icons */
     display->set_viewport(vp_icons);
 
-    if (qs->items[QUICKSCREEN_TOP] != NULL)
-    {
-        display->mono_bitmap(bitmap_icons_7x8[Icon_UpArrow],
-            (vp_icons->width/2) - 4, 0, 7, 8);
-    }
+    /* UP arrow for sleep timer toggle (always shown) */
+    display->mono_bitmap(bitmap_icons_7x8[Icon_UpArrow],
+        (vp_icons->width/2) - 4, 0, 7, 8);
+
     if (qs->items[QUICKSCREEN_RIGHT] != NULL)
     {
         display->mono_bitmap(bitmap_icons_7x8[Icon_FastForward],
@@ -221,14 +256,13 @@ static void gui_quickscreen_draw(const struct gui_quickscreen *qs,
         display->mono_bitmap(bitmap_icons_7x8[Icon_FastBackward],
             0, (vp_icons->height/2) - 4, 7, 8);
     }
-    if (qs->items[QUICKSCREEN_BOTTOM] != NULL)
-    {
-        display->mono_bitmap(bitmap_icons_7x8[Icon_DownArrow],
-            (vp_icons->width/2) - 4, vp_icons->height - 8, 7, 8);
-    }
+    /* DOWN arrow / Play icon for "Now Playing" (always shown) */
+    display->mono_bitmap(bitmap_icons_7x8[Icon_DownArrow],
+        (vp_icons->width/2) - 4, vp_icons->height - 8, 7, 8);
 
+    /* Single atomic update of the entire display */
     display->set_viewport(parent);
-    display->update_viewport();
+    display->update();
     display->set_viewport(last_vp);
 }
 
@@ -247,6 +281,9 @@ static void talk_qs_option(const struct settings_list *opt, bool enqueue)
  *  - qs : the quickscreen
  *  - button : the key we are going to analyse
  * returns : true if the button corresponded to an action, false otherwise
+ *
+ * Note: TOP is used for volume display, BOTTOM is used for sleep timer toggle
+ * Only LEFT and RIGHT cycle settings
  */
 static bool gui_quickscreen_do_button(struct gui_quickscreen * qs, int button)
 {
@@ -254,17 +291,8 @@ static bool gui_quickscreen_do_button(struct gui_quickscreen * qs, int button)
     bool previous = false;
     switch(button)
     {
-        case ACTION_QS_TOP:
-            item = QUICKSCREEN_TOP;
-            break;
-
         case ACTION_QS_LEFT:
             item = QUICKSCREEN_LEFT;
-            previous = true;
-            break;
-
-        case ACTION_QS_DOWN:
-            item = QUICKSCREEN_BOTTOM;
             previous = true;
             break;
 
@@ -339,18 +367,19 @@ static int gui_syncquickscreen_run(struct gui_quickscreen * qs, int button_enter
     {
         screens[i].set_viewport(NULL);
         screens[i].scroll_stop();
-        viewportmanager_theme_enable(i, true, &parent[i]);
+        /* Disable theme completely to prevent skin interference/flickering */
+        viewportmanager_theme_enable(i, false, &parent[i]);
+        /* Clear the entire screen first */
+        screens[i].set_viewport(&parent[i]);
+        screens[i].clear_display();
         quickscreen_fix_viewports(qs, &screens[i], &parent[i], vps[i], &vp_icons[i]);
         gui_quickscreen_draw(qs, &screens[i], &parent[i], vps[i], &vp_icons[i]);
     }
     *usb = false;
     /* Announce current selection on entering this screen. This is all
        queued up, but can be interrupted as soon as a setting is
-       changed. */
+       changed. Note: TOP shows volume, BOTTOM shows sleep timer */
     cond_talk_ids(VOICE_QUICKSCREEN);
-    talk_qs_option(qs->items[QUICKSCREEN_TOP], true);
-    if (qs->items[QUICKSCREEN_TOP] != qs->items[QUICKSCREEN_BOTTOM])
-        talk_qs_option(qs->items[QUICKSCREEN_BOTTOM], true);
     talk_qs_option(qs->items[QUICKSCREEN_LEFT], true);
     if (qs->items[QUICKSCREEN_LEFT] != qs->items[QUICKSCREEN_RIGHT])
         talk_qs_option(qs->items[QUICKSCREEN_RIGHT], true);
@@ -375,23 +404,44 @@ static int gui_syncquickscreen_run(struct gui_quickscreen * qs, int button_enter
             if (qs->callback)
                 qs->callback(qs);
         }
+        else if (button == ACTION_QS_TOP)
+        {
+            /* UP/TOP toggles sleep timer */
+            toggle_sleeptimer();
+            ret |= QUICKSCREEN_CHANGED;
+            can_quit = true;
+            FOR_NB_SCREENS(i)
+                gui_quickscreen_draw(qs, &screens[i], &parent[i],
+                                     vps[i], &vp_icons[i]);
+        }
+        else if (button == ACTION_QS_DOWN)
+        {
+            /* DOWN goes to Now Playing / WPS */
+            ret |= QUICKSCREEN_GOTO_WPS;
+            break;
+        }
         else if (button == button_enter)
             can_quit = true;
         else if (button == ACTION_QS_VOLUP) {
             adjust_volume(1);
+            /* Theme disabled, just redraw quickscreen */
             FOR_NB_SCREENS(i)
-                skin_update(CUSTOM_STATUSBAR, i, SKIN_REFRESH_NON_STATIC);
+                gui_quickscreen_draw(qs, &screens[i], &parent[i],
+                                     vps[i], &vp_icons[i]);
         }
         else if (button == ACTION_QS_VOLDOWN) {
             adjust_volume(-1);
+            /* Theme disabled, just redraw quickscreen */
             FOR_NB_SCREENS(i)
-                skin_update(CUSTOM_STATUSBAR, i, SKIN_REFRESH_NON_STATIC);
+                gui_quickscreen_draw(qs, &screens[i], &parent[i],
+                                     vps[i], &vp_icons[i]);
         }
         else if (button == ACTION_STD_CONTEXT)
         {
             ret |= QUICKSCREEN_GOTO_SHORTCUTS_MENU;
             break;
         }
+        /* No timeout refresh needed - theme is disabled so no interference */
         if ((button == button_enter) && can_quit)
             break;
 
@@ -400,15 +450,16 @@ static int gui_syncquickscreen_run(struct gui_quickscreen * qs, int button_enter
     }
     /* Notify that we're exiting this screen */
     cond_talk_ids_fq(VOICE_OK);
+    bool skip_refresh = (ret & (QUICKSCREEN_GOTO_SHORTCUTS_MENU | QUICKSCREEN_GOTO_WPS));
     FOR_NB_SCREENS(i)
     {   /* stop scrolling before exiting */
         for (int j = 0; j < QUICKSCREEN_ITEM_COUNT; j++)
             screens[i].scroll_stop_viewport(&vps[i][j]);
-        viewportmanager_theme_undo(i, !(ret & QUICKSCREEN_GOTO_SHORTCUTS_MENU));
+        viewportmanager_theme_undo(i, !skip_refresh);
     }
 
-    if (ret & QUICKSCREEN_GOTO_SHORTCUTS_MENU) /* Eliminate flashing of parent during */
-        pop_current_activity_without_refresh();   /* transition to Shortcuts */
+    if (skip_refresh) /* Eliminate flashing of parent during transition */
+        pop_current_activity_without_refresh();
     else
         pop_current_activity();
 
@@ -423,13 +474,18 @@ int quick_screen_quick(int button_enter)
 #endif
     bool usb = false;
 
-    for (int i = 0; i < 4; ++i)
-    {
-        qs.items[i] = global_settings.qs_items[i];
+    /* Only LEFT and RIGHT use configurable settings
+     * TOP shows volume meter, BOTTOM shows sleep timer toggle */
+    qs.items[QUICKSCREEN_TOP] = NULL;
+    qs.items[QUICKSCREEN_BOTTOM] = NULL;
 
-        if (!is_setting_quickscreenable(qs.items[i]))
-            qs.items[i] = NULL;
-    }
+    qs.items[QUICKSCREEN_LEFT] = global_settings.qs_items[QUICKSCREEN_LEFT];
+    if (!is_setting_quickscreenable(qs.items[QUICKSCREEN_LEFT]))
+        qs.items[QUICKSCREEN_LEFT] = NULL;
+
+    qs.items[QUICKSCREEN_RIGHT] = global_settings.qs_items[QUICKSCREEN_RIGHT];
+    if (!is_setting_quickscreenable(qs.items[QUICKSCREEN_RIGHT]))
+        qs.items[QUICKSCREEN_RIGHT] = NULL;
 
     qs.callback = NULL;
     int ret = gui_syncquickscreen_run(&qs, button_enter, &usb);
@@ -443,8 +499,11 @@ int quick_screen_quick(int button_enter)
     }
     if (usb)
         return QUICKSCREEN_IN_USB;
-    return ret & QUICKSCREEN_GOTO_SHORTCUTS_MENU ? QUICKSCREEN_GOTO_SHORTCUTS_MENU :
-                                                   QUICKSCREEN_OK;
+    if (ret & QUICKSCREEN_GOTO_WPS)
+        return QUICKSCREEN_GOTO_WPS;
+    if (ret & QUICKSCREEN_GOTO_SHORTCUTS_MENU)
+        return QUICKSCREEN_GOTO_SHORTCUTS_MENU;
+    return QUICKSCREEN_OK;
 }
 
 /* stuff to make the quickscreen configurable */

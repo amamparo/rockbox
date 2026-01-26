@@ -457,8 +457,17 @@ int do_menu(const struct menu_item_ex *start_menu, int *start_selected,
 #ifdef HAVE_QUICKSCREEN
         else if (action == ACTION_STD_QUICKSCREEN)
         {
-            if (global_settings.shortcuts_replaces_qs ||
-                quick_screen_quick(action) == QUICKSCREEN_GOTO_SHORTCUTS_MENU)
+            int qs_ret = 0;
+            if (!global_settings.shortcuts_replaces_qs)
+                qs_ret = quick_screen_quick(action);
+
+            if (qs_ret == QUICKSCREEN_GOTO_WPS)
+            {
+                ret = GO_TO_WPS;
+                done = true;
+            }
+            else if (global_settings.shortcuts_replaces_qs ||
+                     qs_ret == QUICKSCREEN_GOTO_SHORTCUTS_MENU)
             {
                 int last_screen = global_status.last_screen;
                 global_status.last_screen = GO_TO_SHORTCUTMENU;

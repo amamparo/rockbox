@@ -870,6 +870,8 @@ static int dirbrowse(void)
                         reload_dir = true;
                     else if (ret == QUICKSCREEN_GOTO_SHORTCUTS_MENU)
                         enter_shortcuts_menu = true;
+                    else if (ret == QUICKSCREEN_GOTO_WPS)
+                        return exit_to_new_screen(GO_TO_WPS);
                 }
 
                 if (enter_shortcuts_menu && *tc.dirfilter < NUM_FILTER_MODES)

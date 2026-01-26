@@ -46,20 +46,29 @@ get_disk_mount_point() {
     diskutil info "$disk" 2>/dev/null | grep "Mount Point:" | sed 's/.*Mount Point: *//'
 }
 
-# Find mounted iPod by looking for .rockbox directory
+# Verify a path is actually a mounted filesystem (not a stale directory)
+is_real_mount() {
+    local path="$1"
+    [ -d "$path" ] || return 1
+    # Check if path appears in mount output as a mount point
+    mount | grep -q " on ${path} " 2>/dev/null
+}
+
+# Find mounted iPod by looking for .rockbox directory or known iPod mount names
+# Only returns paths that are actually mounted filesystems (not stale directories)
 find_mounted_ipod() {
-    # Check common mount points first
-    for mount in /Volumes/IPOD /Volumes/iPod /Volumes/ROCKBOX; do
-        if [ -d "$mount/.rockbox" ]; then
-            echo "$mount"
+    # Check common iPod mount points (even without .rockbox for fresh installs)
+    for mp in /Volumes/IPOD /Volumes/iPod /Volumes/ROCKBOX; do
+        if is_real_mount "$mp"; then
+            echo "$mp"
             return 0
         fi
     done
 
-    # Search all volumes
-    for mount in /Volumes/*; do
-        if [ -d "$mount/.rockbox" ]; then
-            echo "$mount"
+    # Search all volumes for .rockbox directory
+    for mp in /Volumes/*; do
+        if is_real_mount "$mp" && [ -d "$mp/.rockbox" ]; then
+            echo "$mp"
             return 0
         fi
     done
@@ -74,15 +83,18 @@ save_mount_point() {
     echo "$mount_point" > "$MOUNT_FILE"
 }
 
-# Get saved mount point
+# Get saved mount point (only if it's still a real mount)
 get_saved_mount_point() {
     if [ -f "$MOUNT_FILE" ]; then
         local saved
         saved=$(cat "$MOUNT_FILE")
-        # Verify it's still valid
-        if [ -d "$saved/.rockbox" ]; then
+        # Verify mount point is actually mounted (not a stale directory)
+        if is_real_mount "$saved"; then
             echo "$saved"
             return 0
+        else
+            # Stale mount file, remove it
+            rm -f "$MOUNT_FILE"
         fi
     fi
     return 1
@@ -125,6 +137,14 @@ do_eject() {
 do_mount() {
     echo "Looking for iPod..."
 
+    # Clean up stale mount points that are directories but not actually mounted
+    for stale in /Volumes/IPOD /Volumes/iPod; do
+        if [ -d "$stale" ] && ! is_real_mount "$stale"; then
+            echo "Cleaning up stale mount point: $stale"
+            sudo rm -rf "$stale" 2>/dev/null || true
+        fi
+    done
+
     # First, check if already mounted
     local mount_point
     if mount_point=$(find_mounted_ipod); then
@@ -147,16 +167,40 @@ do_mount() {
     mount_point=$(get_disk_mount_point "$ipod_disk")
 
     if [ -z "$mount_point" ]; then
-        # Not mounted, mount it
+        # Get volume name for mount point
+        local vol_name
+        vol_name=$(diskutil info "$ipod_disk" 2>/dev/null | grep "Volume Name:" | sed 's/.*Volume Name: *//')
+        vol_name="${vol_name:-IPOD}"
+
+        # Create mount point
+        local manual_mount="/Volumes/$vol_name"
+        if [ ! -d "$manual_mount" ]; then
+            sudo mkdir -p "$manual_mount"
+        fi
+
+        # Mount directly with msdos (more reliable than diskutil)
         echo "Mounting iPod..."
-        mount_point="/Volumes/IPOD"
-        sudo mkdir -p "$mount_point"
-        if ! sudo mount -t msdos "$ipod_disk" "$mount_point"; then
+        if sudo mount -t msdos -o rw,nodev,nosuid "$ipod_disk" "$manual_mount" 2>/dev/null; then
+            mount_point="$manual_mount"
+        else
             echo "Error: Failed to mount iPod"
+            echo ""
+            echo "Try one of these:"
+            echo "  1. Open Disk Utility, run First Aid on the iPod"
+            echo "  2. Disconnect and reconnect the iPod"
+            echo "  3. sudo mount -t msdos $ipod_disk /Volumes/IPOD"
             return 1
         fi
+
         # Disable Spotlight indexing
-        touch "$mount_point/.metadata_never_index" 2>/dev/null || true
+        sudo touch "$mount_point/.metadata_never_index" 2>/dev/null || true
+    fi
+
+    # Verify mount point is actually accessible
+    if [ ! -d "$mount_point" ]; then
+        echo "Error: Mount point $mount_point is not accessible"
+        echo "Try disconnecting and reconnecting the iPod"
+        return 1
     fi
 
     echo "iPod mounted at $mount_point"

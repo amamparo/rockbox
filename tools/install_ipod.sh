@@ -83,7 +83,7 @@ install_themes() {
                 # Sync theme to iPod (no --delete, we want to merge)
                 # Theme zips contain a .rockbox folder, so sync its contents
                 echo "  Syncing $theme_name..."
-                rsync -a "$theme_cache/.rockbox/" "$MOUNT_POINT/.rockbox/"
+                sudo rsync -a "$theme_cache/.rockbox/" "$MOUNT_POINT/.rockbox/"
             done
         fi
     fi
@@ -105,7 +105,7 @@ install_themes() {
                     local theme_name
                     theme_name=$(basename "$theme_dir")
                     echo "  Syncing $theme_name..."
-                    rsync -a "$theme_dir/.rockbox/" "$MOUNT_POINT/.rockbox/"
+                    sudo rsync -a "$theme_dir/.rockbox/" "$MOUNT_POINT/.rockbox/"
                 fi
             done
         fi
@@ -117,8 +117,9 @@ update_cache
 
 # Sync to iPod using rsync (only transfers changed files)
 # Exclude user-generated files that should be preserved
+# Note: sudo required because macOS mounts FAT volumes as root
 echo "Syncing .rockbox to iPod..."
-rsync -a --delete \
+sudo rsync -a --delete \
     --exclude='config.cfg' \
     --exclude='config.cfg.*' \
     --exclude='.resume.cfg' \

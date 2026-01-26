@@ -41,6 +41,7 @@ enum quickscreen_return {
     QUICKSCREEN_IN_USB = 0x1,
     QUICKSCREEN_GOTO_SHORTCUTS_MENU = 0x2,
     QUICKSCREEN_CHANGED = 0x4,
+    QUICKSCREEN_GOTO_WPS = 0x8,
 };
 
 struct gui_quickscreen
