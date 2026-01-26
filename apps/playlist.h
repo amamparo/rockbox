@@ -122,6 +122,7 @@ struct playlist_insert_bulk_context {
     size_t buffer_size;     /* total buffer size */
     size_t buffer_used;     /* bytes used in buffer */
     int count;              /* number of tracks added */
+    int start_index;        /* playlist index where bulk insert started */
     bool initialized;
 };
 

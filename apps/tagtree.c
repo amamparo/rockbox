@@ -129,7 +129,7 @@ static int32_t current_album_artist_seek = -1;
 
 /* Storage for artist disambiguation picker */
 #define MAX_ARTIST_CHOICES 16
-#define ARTIST_NAME_LEN 48
+#define ARTIST_NAME_LEN 128  /* long enough for most artist names */
 static struct {
     int32_t seek;
     char name[ARTIST_NAME_LEN];
@@ -142,6 +142,8 @@ static int artist_choice_count = 0;
 #define RELOAD_TAGTREE (-1024)
 
 static int(*qsort_fn)(const char*, const char*, size_t);
+static int current_sort_tag = -1;  /* tag being sorted, for skip_the_prefix */
+
 /* dummmy functions to allow compatibility strncasecmp */
 static int strnatcasecmp_n(const char *a, const char *b, size_t n)
 {
@@ -917,7 +919,8 @@ static bool parse_search(struct menu_entry *entry, const char *str)
     return true;
 }
 
-/* Skip "The " prefix for sorting (case insensitive) */
+/* Skip "The " prefix for sorting (case insensitive).
+ * Only applies to artist/album tags to avoid affecting song titles. */
 static const char *skip_the_prefix(const char *s)
 {
     if (strncasecmp(s, "The ", 4) == 0)
@@ -929,7 +932,18 @@ static int compare(const void *p1, const void *p2)
 {
     struct tagentry *e1 = (struct tagentry *)p1;
     struct tagentry *e2 = (struct tagentry *)p2;
-    return qsort_fn(skip_the_prefix(e1->name), skip_the_prefix(e2->name), MAX_PATH);
+    const char *n1 = e1->name;
+    const char *n2 = e2->name;
+
+    /* Only skip "The " prefix for artist and album tags */
+    if (current_sort_tag == tag_artist || current_sort_tag == tag_albumartist ||
+        current_sort_tag == tag_album)
+    {
+        n1 = skip_the_prefix(n1);
+        n2 = skip_the_prefix(n2);
+    }
+
+    return qsort_fn(n1, n2, MAX_PATH);
 }
 
 static void tagtree_buffer_event(unsigned short id, void *ev_data)
@@ -1865,6 +1879,7 @@ entry_skip_formatter:
         else
             qsort_fn = sort_inverse ? strncasecmp_inv : strncasecmp;
 
+        current_sort_tag = tag;  /* for skip_the_prefix in compare() */
         struct tagentry *entries = get_entries(c);
         qsort(&entries[c->special_entry_count],
               current_entry_count - c->special_entry_count,

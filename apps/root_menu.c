@@ -447,6 +447,9 @@ static int load_bmarks(void* param)
 }
 
 #ifdef HAVE_TAGCACHE
+/* Max attempts to find a valid album. Retries needed when random album
+ * has no playable tracks or when tagcache filter fails. 10 is generous
+ * since failures are rare in a well-maintained database. */
 #define ALBUM_ROULETTE_MAX_RETRIES 10
 
 static int album_roulette(void* param)
@@ -455,7 +458,6 @@ static int album_roulette(void* param)
     struct tagcache_search tcs;
     int album_count = 0;
     int32_t random_album_seek = -1;
-    int32_t random_artist_seek = -1;
     char buf[MAX_PATH];
     int track_count = 0;
     int retries;
@@ -510,16 +512,6 @@ static int album_roulette(void* param)
         if (random_album_seek < 0)
             continue;  /* Try another random album */
 
-        /* Find the albumartist for this album to distinguish albums with same name */
-        random_artist_seek = -1;
-        if (tagcache_search(&tcs, tag_albumartist))
-        {
-            tagcache_search_add_filter(&tcs, tag_album, random_album_seek);
-            if (tagcache_get_next(&tcs, buf, sizeof(buf)))
-                random_artist_seek = tcs.result_seek;
-            tagcache_search_finish(&tcs);
-        }
-
         /* Create playlist with album tracks */
         if (playlist_create(NULL, NULL) < 0)
         {
@@ -537,9 +529,13 @@ static int album_roulette(void* param)
             tagcache_search_finish(&tcs);
             continue;  /* Filter failed, try another album */
         }
-        /* Also filter by albumartist to distinguish albums with same name */
-        if (random_artist_seek >= 0)
-            tagcache_search_add_filter(&tcs, tag_albumartist, random_artist_seek);
+
+        /* We don't filter by albumartist upfront (too slow). Instead, we'll
+         * capture the albumartist from the first track and only add tracks
+         * that match it, to avoid mixing tracks from different artists'
+         * albums that share the same name. */
+        char target_artist[MAX_PATH];
+        target_artist[0] = '\0';
 
         struct playlist_insert_context context;
         if (playlist_insert_context_create(NULL, &context, PLAYLIST_INSERT_LAST, false, false) < 0)
@@ -552,6 +548,20 @@ static int album_roulette(void* param)
         track_count = 0;
         while (tagcache_get_next(&tcs, buf, sizeof(buf)))
         {
+            /* Get this track's albumartist */
+            char track_artist[MAX_PATH];
+            if (!tagcache_retrieve(&tcs, tcs.idx_id, tag_albumartist,
+                                   track_artist, sizeof(track_artist)))
+                track_artist[0] = '\0';
+
+            /* First track sets the target artist */
+            if (target_artist[0] == '\0')
+                strmemccpy(target_artist, track_artist, sizeof(target_artist));
+
+            /* Skip tracks from different artists (same album name, different artist) */
+            if (strcmp(target_artist, track_artist) != 0)
+                continue;
+
             if (playlist_insert_context_add(&context, buf) >= 0)
                 track_count++;
         }

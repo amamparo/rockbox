@@ -2522,6 +2522,7 @@ int playlist_insert_bulk_init(struct playlist_insert_bulk_context *context,
         return -1;
     }
 
+    context->start_index = playlist->amount;  /* track where bulk insert started */
     context->initialized = true;
     return 0;
 }
@@ -2600,8 +2601,8 @@ int playlist_insert_bulk_flush(struct playlist_insert_bulk_context *context)
         /* Get current end position of control file */
         off_t ctrl_file_offset = lseek(playlist->control_fd, 0, SEEK_END);
 
-        /* Fix up all indices to have absolute seek positions */
-        for (int i = 0; i < playlist->amount; i++)
+        /* Fix up only newly-added indices to have absolute seek positions */
+        for (int i = context->start_index; i < playlist->amount; i++)
         {
             unsigned long flags = playlist->indices[i] & PLAYLIST_INSERT_TYPE_MASK;
             unsigned long rel_seek = playlist->indices[i] & PLAYLIST_SEEK_MASK;
