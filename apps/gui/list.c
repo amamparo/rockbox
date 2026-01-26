@@ -109,10 +109,13 @@ int list_get_nb_lines(struct gui_synclist *list, enum screen_type screen)
     return lines;
 }
 
+/* Vertical padding added to each list row (must match TEXT_V_PADDING*2 in bitmap/list.c) */
+#define LIST_V_PADDING 4
+
 void list_init_item_height(struct gui_synclist *list, enum screen_type screen)
 {
     struct viewport *vp = list->parent[screen];
-    int line_height = font_get(vp->font)->height;
+    int line_height = font_get(vp->font)->height + LIST_V_PADDING;
 #ifdef HAVE_TOUCHSCREEN
     /* the 4/12 factor is designed for reasonable item size on a 160dpi screen */
     if (global_settings.list_line_padding == -1)

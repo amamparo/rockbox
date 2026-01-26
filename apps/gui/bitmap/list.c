@@ -45,6 +45,9 @@
 
 #define ICON_PADDING 1
 #define ICON_PADDING_S "1"
+#define TEXT_H_PADDING 6
+#define TEXT_H_PADDING_S "6"
+#define TEXT_V_PADDING 2
 
 /* these are static to make scrolling work */
 static struct viewport list_text[NB_SCREENS], title_text[NB_SCREENS];
@@ -108,29 +111,33 @@ static void _default_listdraw_fn(struct list_putlineinfo_t *list_info)
     if (is_title)
     {
         if (have_icons)
-            display->put_line(x, y, linedes, "$"ICON_PADDING_S"I$t",
+            display->put_line(x, y, linedes,
+                    "$"TEXT_H_PADDING_S"s$"ICON_PADDING_S"I$t",
                     icon, dsp_text);
         else
-            display->put_line(x, y, linedes, "$t", dsp_text);
+            display->put_line(x, y, linedes,
+                    "$"TEXT_H_PADDING_S"s$t", dsp_text);
     }
     else if (show_cursor && have_icons)
     {
     /* the list can have both, one of or neither of cursor and item icons,
      * if both don't apply icon padding twice between the icons */
-        display->put_line(x, y, 
-                linedes, "$*s$"ICON_PADDING_S"I$i$"ICON_PADDING_S"s$*t",
+        display->put_line(x, y, linedes,
+                "$"TEXT_H_PADDING_S"s$*s$"ICON_PADDING_S"I$i$"ICON_PADDING_S"s$*t",
                 item_indent, is_selected ? Icon_Cursor : Icon_NOICON,
                 icon, item_offset, dsp_text);
     }
     else if (show_cursor || have_icons)
     {
-        display->put_line(x, y, linedes, "$*s$"ICON_PADDING_S"I$*t", item_indent,
+        display->put_line(x, y, linedes,
+                "$"TEXT_H_PADDING_S"s$*s$"ICON_PADDING_S"I$*t", item_indent,
                 show_cursor ? (is_selected ? Icon_Cursor:Icon_NOICON):icon,
                 item_offset, dsp_text);
     }
     else
     {
-        display->put_line(x, y, linedes, "$*s$*t", item_indent, item_offset, dsp_text);
+        display->put_line(x, y, linedes,
+                "$"TEXT_H_PADDING_S"s$*s$*t", item_indent, item_offset, dsp_text);
     }
 }
 
@@ -310,6 +317,8 @@ void list_draw(struct screen *display, struct gui_synclist *list)
     }
 
     display->set_viewport(list_text_vp);
+    /* Apply right-side text padding to match left-side padding in format strings */
+    list_text_vp->width -= TEXT_H_PADDING;
     int icon_w = list_icon_width(screen);
     int character_width = display->getcharwidth();
 

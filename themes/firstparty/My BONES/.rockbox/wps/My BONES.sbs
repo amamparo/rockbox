@@ -22,12 +22,12 @@
 #__Preload Images
 %xl(X,bg_skull.bmp,0,0)
 #
-#__UI Viewport
-%Vi(-,30,30,260,180,3)%Vf(-)%Vb(-)
+#__UI Viewport (height 182 = 7 lines at 26px each, bottom margin = 30px)
+%Vi(-,30,28,260,182,3)%Vf(-)%Vb(-)
 #
-#__Hold indicator
-%V(30,30,-,-,3)
-%?mh<xxx|>
+#__Hold indicator (positioned in top margin, above UI viewport)
+%V(30,8,-,-,2)
+%?mh<HOLD|>
 #
 #
 #__USB screen
