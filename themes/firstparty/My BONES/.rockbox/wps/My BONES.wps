@@ -40,13 +40,17 @@
 #__Clear Screen
 %Vl(mainDisplay,0,0,320,240,-)
 #
-#__Track Number
-%Vl(mainDisplay,30,30,120,-,2)
-%alTRACK %in
+#__Playlist Position (X / Y)
+%Vl(mainDisplay,30,30,130,-,2)
+%al%pp / %pe
 #
-#__Shuffle
-%Vl(mainDisplay,-110,30,80,-,2)
-%ac%?ps<SHUFFLE ON>%Vs(invert)
+#__Shuffle (right-aligned, just left of battery)
+%Vl(mainDisplay,-140,30,70,-,2)
+%ac%?ps<SHUFFLE>%Vs(invert)
+#
+#__Battery
+%Vl(mainDisplay,-70,30,40,-,2)
+%ar%bl%%
 #
 #__Track Title
 %Vl(mainDisplay,30,52,260,-,3)
