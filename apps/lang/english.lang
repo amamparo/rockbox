@@ -17107,3 +17107,31 @@
     *: "More"
   </voice>
 </phrase>
+<phrase>
+  id: LANG_GO_TO_ALBUM
+  desc: WPS context menu - navigate to current album's tracks
+  user: core
+  <source>
+    *: "Go to Album"
+  </source>
+  <dest>
+    *: "Go to Album"
+  </dest>
+  <voice>
+    *: "Go to Album"
+  </voice>
+</phrase>
+<phrase>
+  id: LANG_GO_TO_ARTIST
+  desc: WPS context menu - navigate to current artist's albums
+  user: core
+  <source>
+    *: "Go to Artist"
+  </source>
+  <dest>
+    *: "Go to Artist"
+  </dest>
+  <voice>
+    *: "Go to Artist"
+  </voice>
+</phrase>

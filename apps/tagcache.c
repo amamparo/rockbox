@@ -1346,6 +1346,26 @@ long tagcache_get_numeric(const struct tagcache_search *tcs, int tag)
     return check_virtual_tags(tag, tcs->idx_id, &idx);
 }
 
+/* Get the raw tag_seek value for any tag (used for filter-based searches).
+ * For non-numeric tags, this returns the seek position in the tag data file.
+ * For numeric tags, this returns the numeric value itself.
+ * Returns -1 on error. */
+long tagcache_get_tag_seek(const struct tagcache_search *tcs, int tag)
+{
+    struct index_entry idx;
+
+    if (!tc_stat.ready)
+        return -1;
+
+    if (tag < 0 || tag >= TAG_COUNT)
+        return -1;
+
+    if (!get_index(tcs->masterfd, tcs->idx_id, &idx, true))
+        return -1;
+
+    return idx.tag_seek[tag];
+}
+
 inline static bool str_ends_with(const char *str1, const char *str2)
 {
     logf_clauses("%s %s %s", str1, __func__, str2);

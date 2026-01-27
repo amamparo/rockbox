@@ -709,6 +709,38 @@ static int browse_id3_wrapper(void)
 MENUITEM_FUNCTION(browse_id3_item, MENU_FUNC_CHECK_RETVAL, ID2P(LANG_MENU_SHOW_ID3_INFO),
                   browse_id3_wrapper, NULL, Icon_NOICON);
 
+#ifdef HAVE_TAGCACHE
+static int go_to_album(void)
+{
+    if (get_current_activity() == ACTIVITY_CONTEXTMENU)
+        pop_current_activity_without_refresh();
+
+    tagtree_goto_current_album();
+
+    /* Return to WPS if playing, otherwise previous screen */
+    if (audio_status() & AUDIO_STATUS_PLAY)
+        return GO_TO_WPS;
+    return GO_TO_PREVIOUS;
+}
+MENUITEM_FUNCTION(go_to_album_item, MENU_FUNC_CHECK_RETVAL, ID2P(LANG_GO_TO_ALBUM),
+                  go_to_album, NULL, Icon_Audio);
+
+static int go_to_artist(void)
+{
+    if (get_current_activity() == ACTIVITY_CONTEXTMENU)
+        pop_current_activity_without_refresh();
+
+    tagtree_goto_current_artist();
+
+    /* Return to WPS if playing, otherwise previous screen */
+    if (audio_status() & AUDIO_STATUS_PLAY)
+        return GO_TO_WPS;
+    return GO_TO_PREVIOUS;
+}
+MENUITEM_FUNCTION(go_to_artist_item, MENU_FUNC_CHECK_RETVAL, ID2P(LANG_GO_TO_ARTIST),
+                  go_to_artist, NULL, Icon_Audio);
+#endif /* HAVE_TAGCACHE */
+
 #ifdef HAVE_PITCHCONTROL
 MENUITEM_FUNCTION(pitch_screen_item, 0, ID2P(LANG_PITCH),
                   gui_syncpitchscreen_run, NULL, Icon_Audio);
@@ -1092,20 +1124,10 @@ static int onplaymenu_callback(int action,
 MAKE_ONPLAYMENU( wps_onplay_menu, ID2P(LANG_ONPLAY_MENU_TITLE),
            onplaymenu_callback, Icon_Audio,
            &wps_playlist_menu, &cat_playlist_menu,
-           &sound_settings, &playback_settings,
 #ifdef HAVE_TAGCACHE
-           &rating_item,
+           &go_to_album_item, &go_to_artist_item,
 #endif
-           &bookmark_menu,
-           &plugin_item,
-           &browse_id3_item, &list_viewers_item,
-           &delete_file_item, &view_cue_item,
-#ifdef HAVE_PITCHCONTROL
-           &pitch_menu,
-#endif
-#ifdef HAVE_ALBUMART
-           &view_album_art_item,
-#endif
+           &sound_settings, &playback_settings
          );
 
 MENUITEM_FUNCTION(view_playlist_item, 0, ID2P(LANG_VIEW),
