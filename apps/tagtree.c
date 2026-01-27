@@ -3051,6 +3051,7 @@ int tagtree_get_icon(struct tree_context* c)
 #define GOTO_MAX_ITEMS 64
 static struct {
     char items[GOTO_MAX_ITEMS][MAX_PATH];
+    char filenames[GOTO_MAX_ITEMS][MAX_PATH];
     int count;
     char title[MAX_PATH];
     char artist[MAX_PATH];
@@ -3290,50 +3291,127 @@ bool tagtree_goto_current_artist(void)
 
         if (info.selection == 0)
         {
-            /* All Tracks - play all tracks by this artist */
-            if (!tagcache_search(&tcs, tag_title))
+            /* All Tracks - show track list sorted by album/track number */
+            int saved_count = goto_data.count;
+            int i;
+            char title_buf[MAX_PATH];
+            goto_data.count = 0;
+
+            /* Iterate through albums (saved in goto_data.items[1..saved_count-1]) */
+            for (i = 1; i < saved_count && goto_data.count < GOTO_MAX_ITEMS; i++)
+            {
+                char *album_name = goto_data.items[i];
+                struct tagcache_search_clause album_clause;
+
+                if (!tagcache_search(&tcs, tag_title))
+                    continue;
+
+                /* Filter by album */
+                memset(&album_clause, 0, sizeof(album_clause));
+                album_clause.tag = tag_album;
+                album_clause.type = clause_is;
+                album_clause.numeric = false;
+                album_clause.source = source_constant;
+                album_clause.str = album_name;
+                tagcache_search_add_clause(&tcs, &album_clause);
+
+                /* Filter by artist */
+                memset(&clause, 0, sizeof(clause));
+                clause.tag = goto_data.artist_tag;
+                clause.type = clause_is;
+                clause.numeric = false;
+                clause.source = source_constant;
+                clause.str = goto_data.artist;
+                tagcache_search_add_clause(&tcs, &clause);
+
+                while (tagcache_get_next(&tcs, title_buf, sizeof(title_buf)) &&
+                       goto_data.count < GOTO_MAX_ITEMS)
+                {
+                    if (tagcache_retrieve(&tcs, tcs.idx_id, tag_filename,
+                                          goto_data.filenames[goto_data.count],
+                                          sizeof(goto_data.filenames[0])))
+                    {
+                        strmemccpy(goto_data.items[goto_data.count], title_buf, MAX_PATH);
+                        goto_data.count++;
+                    }
+                }
+                tagcache_search_finish(&tcs);
+            }
+
+            if (goto_data.count == 0)
             {
                 splash(HZ, ID2P(LANG_FAILED));
+                /* Restore album list */
+                goto_data.count = saved_count;
                 continue;
             }
 
-            memset(&clause, 0, sizeof(clause));
-            clause.tag = goto_data.artist_tag;
-            clause.type = clause_is;
-            clause.numeric = false;
-            clause.source = source_constant;
-            clause.str = goto_data.artist;
-            tagcache_search_add_clause(&tcs, &clause);
+            /* Show track list */
+            struct simplelist_info track_info;
+            simplelist_info_init(&track_info, goto_data.artist, goto_data.count, NULL);
+            track_info.get_name = goto_list_get_name;
 
+            if (simplelist_show_list(&track_info))
+                return true;  /* USB connected */
+
+            if (track_info.selection < 0)
+            {
+                /* User pressed back - restore album list and loop */
+                goto_data.count = 1;
+                strmemccpy(goto_data.items[0], str(LANG_TAGNAVI_ALL_TRACKS), MAX_PATH);
+
+                /* Re-fetch albums */
+                if (tagcache_search(&tcs, tag_album))
+                {
+                    memset(&clause, 0, sizeof(clause));
+                    clause.tag = goto_data.artist_tag;
+                    clause.type = clause_is;
+                    clause.numeric = false;
+                    clause.source = source_constant;
+                    clause.str = goto_data.artist;
+                    tagcache_search_add_clause(&tcs, &clause);
+                    tagcache_search_set_uniqbuf(&tcs, uniqbuf, UNIQBUF_SIZE);
+
+                    while (tagcache_get_next(&tcs, buf, sizeof(buf)) &&
+                           goto_data.count < GOTO_MAX_ITEMS)
+                    {
+                        strmemccpy(goto_data.items[goto_data.count], buf, MAX_PATH);
+                        goto_data.count++;
+                    }
+                    tagcache_search_finish(&tcs);
+                }
+                continue;
+            }
+
+            /* User selected a track - create playlist and start from selection */
             if (playlist_create(NULL, NULL) < 0)
             {
-                tagcache_search_finish(&tcs);
                 splash(HZ, ID2P(LANG_FAILED));
                 continue;
             }
 
-            count = 0;
-            while (tagcache_get_next(&tcs, buf, sizeof(buf)))
+            for (i = 0; i < goto_data.count; i++)
             {
-                if (tagcache_retrieve(&tcs, tcs.idx_id, tag_filename, buf, sizeof(buf)))
-                {
-                    playlist_insert_track(NULL, buf, PLAYLIST_INSERT_LAST, false, true);
-                    count++;
-                }
+                playlist_insert_track(NULL, goto_data.filenames[i],
+                                      PLAYLIST_INSERT_LAST, false, true);
             }
-            tagcache_search_finish(&tcs);
 
-            if (count > 0)
+            if (goto_data.count > 0)
             {
-                playlist_start(0, 0, 0);
+                playlist_start(track_info.selection, 0, 0);
                 return true;
             }
             splash(HZ, ID2P(LANG_FAILED));
         }
         else
         {
-            /* User selected an album - play all tracks from it */
-            char *selected_album = goto_data.items[info.selection];
+            /* User selected an album - show track list first */
+            char selected_album[MAX_PATH];
+            int saved_selection = info.selection;
+            strmemccpy(selected_album, goto_data.items[info.selection], MAX_PATH);
+
+            /* Build track list for this album */
+            goto_data.count = 0;
 
             if (!tagcache_search(&tcs, tag_title))
             {
@@ -3360,27 +3438,79 @@ bool tagtree_goto_current_artist(void)
             clause.str = goto_data.artist;
             tagcache_search_add_clause(&tcs, &clause);
 
-            if (playlist_create(NULL, NULL) < 0)
+            while (tagcache_get_next(&tcs, buf, sizeof(buf)) &&
+                   goto_data.count < GOTO_MAX_ITEMS)
             {
-                tagcache_search_finish(&tcs);
-                splash(HZ, ID2P(LANG_FAILED));
-                continue;
-            }
-
-            count = 0;
-            while (tagcache_get_next(&tcs, buf, sizeof(buf)))
-            {
-                if (tagcache_retrieve(&tcs, tcs.idx_id, tag_filename, buf, sizeof(buf)))
+                if (tagcache_retrieve(&tcs, tcs.idx_id, tag_filename,
+                                      goto_data.filenames[goto_data.count],
+                                      sizeof(goto_data.filenames[0])))
                 {
-                    playlist_insert_track(NULL, buf, PLAYLIST_INSERT_LAST, false, true);
-                    count++;
+                    strmemccpy(goto_data.items[goto_data.count], buf, MAX_PATH);
+                    goto_data.count++;
                 }
             }
             tagcache_search_finish(&tcs);
 
-            if (count > 0)
+            if (goto_data.count == 0)
             {
-                playlist_start(0, 0, 0);
+                splash(HZ, ID2P(LANG_FAILED));
+                continue;
+            }
+
+            /* Show track list */
+            struct simplelist_info track_info;
+            simplelist_info_init(&track_info, selected_album, goto_data.count, NULL);
+            track_info.get_name = goto_list_get_name;
+
+            if (simplelist_show_list(&track_info))
+                return true;  /* USB connected */
+
+            if (track_info.selection < 0)
+            {
+                /* User pressed back - restore album list and loop */
+                goto_data.count = 1;
+                strmemccpy(goto_data.items[0], str(LANG_TAGNAVI_ALL_TRACKS), MAX_PATH);
+
+                /* Re-fetch albums */
+                if (tagcache_search(&tcs, tag_album))
+                {
+                    memset(&clause, 0, sizeof(clause));
+                    clause.tag = goto_data.artist_tag;
+                    clause.type = clause_is;
+                    clause.numeric = false;
+                    clause.source = source_constant;
+                    clause.str = goto_data.artist;
+                    tagcache_search_add_clause(&tcs, &clause);
+                    tagcache_search_set_uniqbuf(&tcs, uniqbuf, UNIQBUF_SIZE);
+
+                    while (tagcache_get_next(&tcs, buf, sizeof(buf)) &&
+                           goto_data.count < GOTO_MAX_ITEMS)
+                    {
+                        strmemccpy(goto_data.items[goto_data.count], buf, MAX_PATH);
+                        goto_data.count++;
+                    }
+                    tagcache_search_finish(&tcs);
+                }
+                info.selection = saved_selection;
+                continue;
+            }
+
+            /* User selected a track - create playlist and start from selection */
+            if (playlist_create(NULL, NULL) < 0)
+            {
+                splash(HZ, ID2P(LANG_FAILED));
+                continue;
+            }
+
+            for (count = 0; count < goto_data.count; count++)
+            {
+                playlist_insert_track(NULL, goto_data.filenames[count],
+                                      PLAYLIST_INSERT_LAST, false, true);
+            }
+
+            if (goto_data.count > 0)
+            {
+                playlist_start(track_info.selection, 0, 0);
                 return true;
             }
             splash(HZ, ID2P(LANG_FAILED));
