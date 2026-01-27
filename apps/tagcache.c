@@ -1059,6 +1059,65 @@ static bool get_index(int masterfd, int idxid,
     (void)use_ram;
 }
 
+/* Cached album index for O(1) random album selection with uniform distribution.
+ * Uses static array to avoid malloc (not available on device). 16K albums max
+ * covers even very large libraries while using only 64KB. */
+#define ALBUM_CACHE_MAX 16384
+
+static struct {
+    int32_t seeks[ALBUM_CACHE_MAX];  /* Array of unique album seek values */
+    int count;                        /* Number of albums in cache */
+    int32_t commitid;                 /* Database commitid when cache was built */
+    bool valid;                       /* Cache is valid */
+} album_cache;
+
+static bool album_cache_build(void)
+{
+    struct tagcache_search tcs;
+    char buf[MAX_PATH];
+    int i = 0;
+
+    album_cache.count = 0;
+    album_cache.valid = false;
+
+    if (!tagcache_search(&tcs, tag_album))
+        return false;
+
+    /* Collect all unique album seek values */
+    while (tagcache_get_next(&tcs, buf, sizeof(buf)) && i < ALBUM_CACHE_MAX)
+    {
+        album_cache.seeks[i++] = tcs.result_seek;
+    }
+    tagcache_search_finish(&tcs);
+
+    album_cache.count = i;
+    album_cache.commitid = current_tcmh.commitid;
+    album_cache.valid = true;
+
+    return album_cache.count > 0;
+}
+
+bool tagcache_get_random_album(int32_t *album_seek)
+{
+    if (!tc_stat.ready)
+        return false;
+
+    /* Rebuild cache if invalid or database changed */
+    if (!album_cache.valid || album_cache.commitid != current_tcmh.commitid)
+    {
+        if (!album_cache_build())
+            return false;
+    }
+
+    if (album_cache.count == 0)
+        return false;
+
+    /* O(1) random selection from cached array */
+    int idx = rand() % album_cache.count;
+    *album_seek = album_cache.seeks[idx];
+    return true;
+}
+
 #ifndef __PCTOOL__
 
 static bool write_index(int masterfd, int idxid, struct index_entry *idx)

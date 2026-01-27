@@ -186,8 +186,12 @@ long tagcache_increase_serial(void);
 bool tagcache_import_changelog(void);
 bool tagcache_create_changelog(struct tagcache_search *tcs);
 void tagcache_update_numeric(int idx_id, int tag, long data);
-bool tagcache_modify_numeric_entry(struct tagcache_search *tcs, 
+bool tagcache_modify_numeric_entry(struct tagcache_search *tcs,
                                    int tag, long data);
+
+/* Random album selection with uniform distribution.
+ * Caches album list on first call for O(1) subsequent access. */
+bool tagcache_get_random_album(int32_t *album_seek);
 
 struct tagcache_stat* tagcache_get_stat(void);
 int tagcache_get_commit_step(void);
