@@ -2890,11 +2890,11 @@ bool tagtree_shuffle_all_songs(void)
         return false;
     }
 
-    /* Shuffle and start playback */
-    int start_index = 0;
-    if (global_settings.playlist_shuffle)
-        start_index = playlist_shuffle(current_tick, -1);
+    /* Enable shuffle if not already on, then shuffle and start playback */
+    if (!global_settings.playlist_shuffle)
+        global_settings.playlist_shuffle = true;
 
+    int start_index = playlist_shuffle(current_tick, -1);
     playlist_start(start_index, 0, 0);
     return true;
 }

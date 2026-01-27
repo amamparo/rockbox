@@ -138,7 +138,7 @@ do_mount() {
     echo "Looking for iPod..."
 
     # Clean up stale mount points that are directories but not actually mounted
-    for stale in /Volumes/IPOD /Volumes/iPod; do
+    for stale in /Volumes/ROCKBOX /Volumes/IPOD /Volumes/iPod; do
         if [ -d "$stale" ] && ! is_real_mount "$stale"; then
             echo "Cleaning up stale mount point: $stale"
             sudo rm -rf "$stale" 2>/dev/null || true
@@ -167,13 +167,8 @@ do_mount() {
     mount_point=$(get_disk_mount_point "$ipod_disk")
 
     if [ -z "$mount_point" ]; then
-        # Get volume name for mount point
-        local vol_name
-        vol_name=$(diskutil info "$ipod_disk" 2>/dev/null | grep "Volume Name:" | sed 's/.*Volume Name: *//')
-        vol_name="${vol_name:-IPOD}"
-
-        # Create mount point
-        local manual_mount="/Volumes/$vol_name"
+        # Always mount to /Volumes/ROCKBOX (avoids macOS Music app interference)
+        local manual_mount="/Volumes/ROCKBOX"
         if [ ! -d "$manual_mount" ]; then
             sudo mkdir -p "$manual_mount"
         fi
@@ -195,12 +190,17 @@ do_mount() {
             echo "Try one of these:"
             echo "  1. Open Disk Utility, run First Aid on the iPod"
             echo "  2. Disconnect and reconnect the iPod"
-            echo "  3. sudo mount -t msdos $ipod_disk /Volumes/IPOD"
+            echo "  3. sudo mount -t msdos $ipod_disk /Volumes/ROCKBOX"
             return 1
         fi
 
         # Disable Spotlight indexing
         sudo touch "$mount_point/.metadata_never_index" 2>/dev/null || true
+        sudo mdutil -i off "$mount_point" 2>/dev/null || true
+
+        # Kill Music app agents that might interfere
+        killall AMPDeviceDiscoveryAgent 2>/dev/null || true
+        killall AMPLibraryAgent 2>/dev/null || true
     fi
 
     # Verify mount point is actually accessible
