@@ -202,7 +202,7 @@ MENUITEM_SETTING(album_art, &global_settings.album_art,
 MENUITEM_SETTING(playback_log, &global_settings.playback_log, NULL);
 
 MAKE_MENU(playback_settings,ID2P(LANG_PLAYBACK),0,
-          Icon_Menu_setting,
+          Icon_Playback_menu,
           &shuffle_item, &repeat_mode, &play_selected,
           &ff_rewind_settings_menu,
 #ifdef HAVE_DISK_STORAGE
