@@ -24,11 +24,11 @@ help:
 	@echo "  make clean    - Remove build artifacts from output/"
 	@echo ""
 	@echo "iPod targets:"
-	@echo "  make mount          - Detect and mount connected iPod"
-	@echo "  make install        - Install Rockbox to iPod (runs mount first)"
+	@echo "  make mount          - Detect and mount connected device"
+	@echo "  make install        - Install Rockbox to device (runs mount first)"
 	@echo "  make build_database - Full rebuild of music database (clears existing)"
 	@echo "  make update_database - Update database (only new/changed files)"
-	@echo "  make eject          - Safely eject iPod"
+	@echo "  make eject          - Safely eject device"
 	@echo ""
 	@echo "Artifacts are placed in output/"
 	@echo ""
@@ -38,7 +38,7 @@ build:
 	./tools/docker_ipodvideo/build.sh build
 
 mount:
-	./tools/mount_ipod.sh
+	./tools/mount_device.sh
 
 install: mount
 	./tools/install_ipod.sh
